@@ -43,7 +43,7 @@ so a change that only passes with a game is not covered by CI, and vice versa.
 | [colwin/workspace.py](colwin/workspace.py) | extract / status / build / verify, and the manifest |
 | [colwin/formats/](colwin/formats/) | `sprt`, `cvpc`, `lzw`, `text`, `dib`, `flic` |
 | [colwin/cli.py](colwin/cli.py) | argparse front end; [colwin.py](colwin.py) runs it uninstalled |
-| [docs/](docs/) | the reference site (GitHub Pages from `/docs` on `main`) |
+| [docs/](docs/) | the reference site (built and deployed to GitHub Pages by [.github/workflows/pages.yml](.github/workflows/pages.yml)) |
 
 ## Invariants to preserve
 
