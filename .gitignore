@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+/game
+/workspace
+/build
+/out
+.DS_Store
