@@ -6,12 +6,33 @@ own containers afterwards. It is pure Python 3, stdlib only, no dependencies.
 
 It does **not** contain the game. Bring your own copy.
 
+## Install and run
+
+There is nothing to install. You need **Python 3.9 or newer** — tested on 3.9,
+3.11 and 3.13 — and a retail install of the game.
+
+```sh
+git clone https://github.com/colonization-re/win-tools
+cd win-tools
+python3 colwin.py --version
+```
+
+`colwin.py` runs the package straight out of the checkout, from any directory
+(`python3 /path/to/win-tools/colwin.py ...`), and `python3 -m colwin` does the
+same wherever the checkout is importable. On Windows use `py -3` in place of
+`python3`. To remove it, delete the directory: nothing is written outside the
+checkout and the directories you name on the command line.
+
+Then:
+
 ```sh
 python3 colwin.py extract ~/games/colonization --out=ws
 #  ... edit ws/sprites/**/*.png in any paint program ...
 python3 colwin.py status ws
 python3 colwin.py build  ws --out=patched        # a complete, playable install
 ```
+
+[Using the tool](docs/usage.md) is the long version, with every option.
 
 ## What round-trips, and how well
 

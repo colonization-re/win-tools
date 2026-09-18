@@ -5,16 +5,30 @@ installed copy of the game, writes the assets out as ordinary files, and puts
 them back into a fresh copy of the install. It never writes to the install it
 read from.
 
-## What you need
+## Installing it
+
+There is nothing to install. `colwin` is stdlib-only Python by design — clone
+the repository and run it out of the checkout, next to a copy of the game.
+
+### What you need
 
 **Python 3.9 or newer, and nothing else.** No dependencies, no build step, no
-virtualenv — the tools are stdlib-only by design so they can run on a bare
-Python next to a copy of the game.
+virtualenv, no `pip install`. The tools are tested on 3.9, 3.11 and 3.13.
+
+```sh
+python3 --version
+```
 
 **A retail install of *Colonization for Windows* (1995).** This repository does
 not contain the game and cannot get it for you. Point the tools at the directory
 the installer produced — the one holding `COLONIZE.EXE`, the `COLDATA*.DLL`
 files and the `.WAV`s. [What is in each file](files.md) describes it.
+
+The install is only ever read. Everything written goes to the workspace and
+output directories you name on the command line, and nowhere else — no config
+file, no cache, nothing in `site-packages`.
+
+### Getting it
 
 ```sh
 git clone https://github.com/colonization-re/win-tools
@@ -22,9 +36,31 @@ cd win-tools
 python3 colwin.py --version
 ```
 
-`colwin.py` runs the package uninstalled from the checkout; `python3 -m colwin`
-does the same thing from anywhere the checkout is importable. Every example
-below is written as `python3 colwin.py`.
+That last line should print `colwin` and a version number. If it does, you are
+done: everything on this page works from here.
+
+### Ways to run it
+
+| | |
+| --- | --- |
+| `python3 colwin.py ...` | from the checkout. Every example on this page is written this way |
+| `./colwin.py ...` | the same thing; the file is executable and carries a `#!/usr/bin/env python3` line |
+| `python3 /path/to/win-tools/colwin.py ...` | from anywhere, by absolute path. `colwin.py` puts its own directory on `sys.path`, so no environment variable is needed |
+| `PYTHONPATH=/path/to/win-tools python3 -m colwin ...` | as a module, from anywhere the checkout is importable |
+
+On Windows, use `py -3` in place of `python3`.
+
+If you want it on your `PATH`, symlink or alias `colwin.py` — it does not care
+where it is called from, only where it lives:
+
+```sh
+ln -s "$PWD/colwin.py" ~/.local/bin/colwin
+```
+
+### Updating and removing it
+
+`git pull` updates it. To remove it, delete the directory; workspaces and built
+installs you made are ordinary directories elsewhere and are unaffected.
 
 ## A session
 
