@@ -33,6 +33,12 @@ Never! That would be folly.
 **Substitutions**, filled in at runtime: `%STRING0`–`%STRING4` (382, 210, 88, 49
 and 6 uses), `%NUMBER0`–`%NUMBER3` (125, 36, 11, 2), `%COUNTRY` (5), `%F` (1).
 
+<!-- The gold-glyph example below writes `{` + `&#37;` rather than a literal
+     `{`+`%`: Jekyll runs Liquid over these pages before Markdown, and a bare
+     `{`+`%` opens a tag it never finds the end of, which fails the Pages
+     build. The entity renders as a percent sign both here and in the GitHub
+     file browser. tests/test_docs.py guards against a literal one coming back. -->
+
 **Markup**:
 
 - `{…}` — emphasis. 1,125 opens and 1,125 closes across the corpus, perfectly
@@ -44,7 +50,7 @@ and 6 uses), `%NUMBER0`–`%NUMBER3` (125, 36, 11, 2), `%COUNTRY` (5), `%F` (1).
 - `~` (11) — rare, purpose **UNKNOWN**.
 - A blank line separates the prompt from the list of selectable answers.
 - Byte **`0xA4`** is the game's gold/coin glyph: *Treasure sold to foreign agents
-  for {%NUMBER0¤}.*
+  for {&#37;NUMBER0¤}.*
 
 ## Encoding
 

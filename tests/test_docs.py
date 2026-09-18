@@ -258,6 +258,31 @@ class Docs(unittest.TestCase):
         self.assertEqual(bad, [], "\n  ".join([""] + bad))
 
 
+class Liquid(unittest.TestCase):
+    """GitHub Pages runs Liquid over docs/ before Markdown, so a literal `{` + `%`
+    or `{` + `{` in prose is a template tag and an unterminated one fails the
+    build. These pages quote game strings full of braces, so it is easy to add
+    one. Write the brace with an HTML entity instead; the rendered page is the
+    same in both the site and the GitHub file browser. Needs no game.
+    """
+
+    def test_docs_contain_no_accidental_liquid_tags(self):
+        bad = []
+        for dirpath, _, names in os.walk(os.path.join(ROOT, "docs")):
+            for name in sorted(names):
+                if not name.endswith(".md"):
+                    continue
+                path = os.path.join(dirpath, name)
+                with open(path) as f:
+                    lines = f.read().splitlines()
+                for i, line in enumerate(lines, 1):
+                    for tag in ("{" + "%", "{" + "{"):
+                        if tag in line:
+                            bad.append("%s:%d: %s" % (
+                                os.path.relpath(path, ROOT), i, line.strip()))
+        self.assertEqual(bad, [], "\n  ".join([""] + bad))
+
+
 def main():
     global GAME
     argv = sys.argv[1:]
