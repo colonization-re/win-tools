@@ -113,8 +113,10 @@ These are refused with an explanation rather than silently mangled:
 
 ## Documentation
 
-[**docs/**](docs/) is a small reference site — ready to serve as GitHub Pages
-from `/docs` on `main`.
+[**docs/**](docs/) is a small reference site. Every push to `main` that touches
+it is built with Jekyll and deployed to GitHub Pages by
+[.github/workflows/pages.yml](.github/workflows/pages.yml); the repository's
+Pages source has to be set to "GitHub Actions" for that to publish.
 
 | | |
 | --- | --- |
