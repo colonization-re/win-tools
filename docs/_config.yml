@@ -1,0 +1,13 @@
+title: colwin
+description: >-
+  Reading and writing the asset files of Sid Meier's Colonization for
+  Windows (1995).
+theme: jekyll-theme-cayman
+show_downloads: false
+# `jekyll-relative-links` is on by default for GitHub Pages, so the .md links
+# in these pages resolve both here and in the GitHub file browser.
+plugins:
+  - jekyll-relative-links
+exclude:
+  - Gemfile
+  - Gemfile.lock

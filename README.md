@@ -33,7 +33,9 @@ install file for file, because a file whose hash has not changed is never
 re-encoded at all — its original bytes go straight back.
 
 `python3 tests/test_roundtrip.py /path/to/game` runs all of that as 19 tests,
-including a full edit → build → re-extract cycle.
+including a full edit → build → re-extract cycle, and
+`python3 tests/test_docs.py /path/to/game` re-derives all 38 numbers in
+[docs/](docs/) from the install and fails if any page has drifted from it.
 
 ## The palette problem, and what this does about it
 
@@ -109,6 +111,18 @@ These are refused with an explanation rather than silently mangled:
 | `verify WS` | re-encode everything and compare with the game |
 | `palette WS [--set=RULE]` | show the view palettes, or swap them |
 
+## Documentation
+
+[**docs/**](docs/) is a small reference site — ready to serve as GitHub Pages
+from `/docs` on `main`.
+
+| | |
+| --- | --- |
+| [What is in each file](docs/files.md) | all 64 files of an install, and what each one holds |
+| [Formats](docs/formats/) | the layouts, one page each, with the evidence for each |
+| [Palettes](docs/palettes.md) | why sprite colours are stored nowhere, and the rule that follows |
+| [Editing](docs/editing.md) | the workflow, and what gets refused |
+
 ## Layout
 
 ```
@@ -117,7 +131,8 @@ colwin/png.py         PNG in and out, stdlib only
 colwin/palette.py     the palette model and the injectivity rule
 colwin/workspace.py   extract / status / build / verify
 colwin/formats/       sprt, cvpc, lzw, ctab (in palette.py), text, dib, flic
-tests/                19 tests; the asset ones need a copy of the game
+docs/                 the reference site
+tests/                the test suite; the asset tests need a copy of the game
 ```
 
 ## Where the formats come from

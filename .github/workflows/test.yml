@@ -17,4 +17,5 @@ jobs:
       # ship and CI cannot have. The codec, palette and PNG tests run without
       # one; the rest report as skipped.
       - run: python3 tests/test_roundtrip.py
+      - run: python3 tests/test_docs.py
       - run: python3 colwin.py --help
