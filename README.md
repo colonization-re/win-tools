@@ -120,6 +120,7 @@ Pages source has to be set to "GitHub Actions" for that to publish.
 
 | | |
 | --- | --- |
+| [Using the tool](docs/usage.md) | the six commands, every option, and what each one prints |
 | [What is in each file](docs/files.md) | all 64 files of an install, and what each one holds |
 | [Formats](docs/formats/) | the layouts, one page each, with the evidence for each |
 | [Palettes](docs/palettes.md) | why sprite colours are stored nowhere, and the rule that follows |

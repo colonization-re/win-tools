@@ -10,6 +10,9 @@ python3 colwin.py build  ws --out=patched
 `build` writes a complete install: the rebuilt modules plus every other file
 copied alongside them.
 
+This page is the workflow and the rules the formats impose. Every command and
+every option is in [Using the tool](usage.md).
+
 ## What a workspace holds
 
 ```

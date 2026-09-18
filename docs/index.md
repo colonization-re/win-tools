@@ -13,6 +13,7 @@ formats come from is in
 
 | | |
 | --- | --- |
+| [**Using the tool**](usage.md) | the six commands, every option, and what each one prints |
 | [**What is in each file**](files.md) | all 64 files of an install, and what each one holds |
 | [**Formats**](formats/) | the layouts, one page each |
 | [**Palettes**](palettes.md) | why sprite colours are not stored anywhere, and what to do about it |
