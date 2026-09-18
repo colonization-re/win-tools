@@ -128,7 +128,7 @@ source files cite the specific evidence — the CVPC palette offset comes from
 the call site at `1068:4c05`, the LZW parameters from the hand-written 386
 assembly at `1088:0000`, the CTAB field meanings from the loader at
 `1068:0180`. Where something is not established, the code says `UNKNOWN` and
-carries the bytes through rather than inventing a meaning for them. Two header
-words in every sprite are like that: they match nothing derivable from the
-image (tested against row count, pixel count, byte count and both dimensions
-over all 915), so they are copied, never computed.
+carries the bytes through rather than inventing a meaning for them. Four fields
+of the sprite header are like that — testing seven image quantities against
+three readings of each, over all 915 sprites, the best of the 21 hypotheses
+matches 89. They are copied, never computed.

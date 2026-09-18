@@ -2,8 +2,9 @@
 
 Header, 0x19 (25) bytes, little-endian:
 
-    0x00  4 x  WORD  signed placement offsets; (0,0,0,0) in 774 of 915 sprites,
-                     and a negative pair in the other 141.  Preserved verbatim.
+    0x00  2 x  WORD  signed, UNKNOWN: a pair, non-zero in 141 of 915 and always
+                     negative there.  Preserved verbatim, never computed.
+    0x04  2 x  WORD  0 in all 915
     0x08  WORD  full_width      the canvas the sprite sits on
     0x0a  WORD  full_height
     0x0c  WORD  x0  \
@@ -11,7 +12,7 @@ Header, 0x19 (25) bytes, little-endian:
     0x10  WORD  x1   |
     0x12  WORD  y1  /
     0x14  WORD  UNKNOWN -- preserved verbatim, never recomputed (see below)
-    0x16  WORD  UNKNOWN -- likewise
+    0x16  WORD  UNKNOWN -- likewise; 0x14 and 0x16 may be one 32-bit field
     0x18  BYTE  0
 
 Then exactly `y1 - y0` rows, each ONE run:
@@ -35,10 +36,15 @@ sprites, not assumed:
 The last one is what lets index 0 mean "transparent" on the way out and back
 in without colliding with real pixel data; `encode` re-checks it per sprite.
 
-The two UNKNOWN words are copied, not computed.  They were tested against row
-count, pixel count, byte count, canvas and box dimensions over all 915 sprites
-and match none of them (best: 86/915).  A field nobody understands is a field
-to carry through untouched.
+Four of the header's fields are copied, not computed, because nobody knows what
+they are.  The pair at 0x00 is related to the canvas without being determined by
+it -- 0x00 is exactly -(full_width / 2) in 66 of the 141 sprites that have one,
+and both coordinates are the canvas centre in 49 -- which looks like a draw
+origin and is not established as one.  The 0x14/0x16 pair reads as one 32-bit
+counter (its low word carries into the high word) that matches nothing in the
+image: seven image quantities against three readings of the field is 21
+hypotheses, and the best matches 89 of 915.  A field nobody understands is a
+field to carry through untouched.
 """
 import struct
 

@@ -40,7 +40,8 @@ module, which is what verifies the layout.
 
 | Offset | | |
 | --- | --- | --- |
-| `0x00` | 4 × `WORD` | signed placement offsets; zero in 774 of 915, a negative pair in the rest |
+| `0x00` | 2 × `WORD` | signed, **UNKNOWN**: non-zero in 141 of 915 and always negative there |
+| `0x04` | 2 × `WORD` | 0 in all 915 |
 | `0x08` | `WORD` | `full_width` — the canvas the sprite sits on |
 | `0x0a` | `WORD` | `full_height` |
 | `0x0c`–`0x12` | 4 × `WORD` | `x0, y0, x1, y1` — bounding box of the opaque pixels |
@@ -59,9 +60,14 @@ Invariants, measured over all 915 and relied on by the encoder:
 - index 0 never appears inside a run — 837/837, which is what lets index 0 mean
   transparent on the way out and back
 
-The two `UNKNOWN` words are copied, never computed: tested against row count,
-pixel count, byte count and both dimensions over all 915 sprites, the best
-match is 86/915. Nobody knows what they are, so nothing here pretends to.
+The four `UNKNOWN` fields are copied, never computed. The pair at `0x00` is
+related to the canvas without being determined by it — `0x00` is exactly
+`-(full_width / 2)` in 66 of the 141 sprites that carry one, and both
+coordinates are the canvas centre in 49 — which is what a draw origin looks
+like and is not established as one. `0x14`/`0x16` read as one 32-bit counter
+whose low word carries into the high word; across seven image quantities tested
+three ways over all 915 sprites, the best of those 21 hypotheses matches 89.
+Nobody knows what they are, so nothing here pretends to.
 
 ## `CVPC` — canvas image — `colwin/formats/cvpc.py`, `lzw.py`
 
