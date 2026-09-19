@@ -109,10 +109,17 @@ BASE_CELLS.update({24: (321, 39, TILE, TILE), 25: (321, 72, TILE, TILE),
 
 CORNER_X0, CORNER_PITCH, CORNER_INNER = 7, 36, 17
 CORNER_Y = (438, 455)
-# A coastline corner is a composite too: the builder draws a 16x16 square of
-# open water and the coast piece over it, then extracts. The water quarter is
-# the last of a 2x2 block at (547, 434); the builder's inner loop overwrites its
-# result four times, so the fourth -- this one -- is the one that survives.
+# A coastline corner is a composite, and the ORDER of it decides what a coast
+# looks like. The builder draws a 16x16 square of open water, draws the coast
+# piece over that, and only then extracts the result keying out the ground. So a
+# pixel the piece paints in the ground colour covers the water first and is
+# dropped second: it becomes a HOLE, through which the square's base tile shows
+# -- and that base is the land behind the coast. That is the beach.
+#
+# Reading it the other way round, as "the piece's ground colour is transparent
+# so the water below shows", costs exactly that: the land never shows, every
+# coastal square is a solid block of water, and the coastline steps in squares.
+# Codes 1 and 3 to 7 all carry ground pixels; code 7 is a quarter of the piece.
 CORNER_WATER = (547, 451, HALF, HALF)
 
 # The four whole-edge shore squares, icons 0x97..0x9a. They sit as a 2x2 block
@@ -252,6 +259,35 @@ class Tileset:
                 if v == key_colour or (isinstance(key_colour, tuple)
                                        and v in key_colour):
                     continue
+                i = y * w + x
+                opaque[i] = 1
+                rgb[i * 3:i * 3 + 3] = bytes(self.palette[v])
+        out = (w, h, bytes(rgb), bytes(opaque))
+        self._cells[key] = out
+        return out
+
+    def corner(self, code, j):
+        """One composited coastline quarter: water, the piece, then the key.
+
+        Water where the piece is black, the piece where it paints, and nothing
+        at all where it paints the ground -- see CORNER_WATER.
+        """
+        key = (code, j, "corner")
+        if key in self._cells:
+            return self._cells[key]
+        wx, wy, w, h = CORNER_WATER
+        px, py, _pw, _ph = corner_cell(code, j)
+        rgb = bytearray(w * h * 3)
+        opaque = bytearray(w * h)
+        for y in range(h):
+            piece = (py + y) * self.width + px
+            water = (wy + y) * self.width + wx
+            for x in range(w):
+                v = self.pixels[piece + x]
+                if v == KEY_GROUND:
+                    continue
+                if v == KEY_BLACK:
+                    v = self.pixels[water + x]
                 i = y * w + x
                 opaque[i] = 1
                 rgb[i * 3:i * 3 + 3] = bytes(self.palette[v])

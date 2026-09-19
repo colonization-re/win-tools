@@ -23,9 +23,9 @@ from colwin import mapview                                          # noqa: E402
 from colwin import png as pnglib                                    # noqa: E402
 from colwin.formats import mapfile                                  # noqa: E402
 from colwin.tileset import (BANDS, BASE_CELLS, CORNER_BACKGROUND,     # noqa: E402
-                            KEY_GROUND, MASK_CELLS, MASK_KEEP, SHORE_CELLS,
-                            SHORE_OPEN, Tileset, band_cell, corner_cell,
-                            corner_offset)
+                            CORNER_WATER, KEY_GROUND, MASK_CELLS, MASK_KEEP,
+                            SHORE_CELLS, SHORE_OPEN, Tileset, band_cell,
+                            corner_cell, corner_offset)
 
 GAME = os.environ.get("COLWIN_GAME")
 _tiles = {}
@@ -426,6 +426,46 @@ class Art(unittest.TestCase):
                         self.assertFalse(opaque[y * w + x],
                                          "%r paints the key at (%d, %d)"
                                          % (box, x, y))
+
+    def test_a_composited_corner_keeps_water_black_and_holes_the_ground(self):
+        """The builder's order: water, then the piece, then key out the ground.
+
+        A pixel the piece paints in the ground colour covers the water first and
+        is dropped second, so it becomes a hole for the land behind the coast to
+        show through. Reading it the other way -- ground transparent, water
+        below showing -- gives a solid block of water and a coastline that steps
+        in squares. Codes 1 and 3..7 all carry ground pixels.
+        """
+        tiles = tileset(game_or_skip(self))
+        holes = 0
+        for code in range(8):
+            for j in range(4):
+                w, h, rgb, opaque = tiles.corner(code, j)
+                px, py, _w, _h = corner_cell(code, j)
+                for y in range(h):
+                    for x in range(w):
+                        v = tiles.pixels[(py + y) * tiles.width + px + x]
+                        i = y * w + x
+                        if v == KEY_GROUND:
+                            self.assertFalse(opaque[i],
+                                             "code %d/%d paints the ground" % (code, j))
+                            holes += 1
+                        else:
+                            self.assertTrue(opaque[i],
+                                            "code %d/%d drops a painted pixel"
+                                            % (code, j))
+        self.assertGreater(holes, 500, "no holes at all: %d" % holes)
+
+    def test_a_corner_piece_is_water_where_it_is_black(self):
+        tiles = tileset(game_or_skip(self))
+        w, h, rgb, opaque = tiles.corner(0, 0)      # all black: plain water
+        self.assertEqual(sum(opaque), w * h)
+        wx, wy, _w, _h = CORNER_WATER
+        for y in range(h):
+            for x in range(w):
+                i = y * w + x
+                want = tiles.palette[tiles.pixels[(wy + y) * tiles.width + wx + x]]
+                self.assertEqual(tuple(rgb[i * 3:i * 3 + 3]), want)
 
     def test_a_coastline_piece_is_keyed_twice(self):
         """Once on black when it is cut, once on the ground when composited."""

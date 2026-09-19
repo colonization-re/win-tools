@@ -406,10 +406,7 @@ def _square(canvas, tiles, p0, p1, x, y, px, py, plain):
         else:
             for j in range(4):
                 dx, dy = corner_offset(j)
-                # Open water under the piece, as the builder composites it.
-                canvas.blit(tiles.cell(CORNER_WATER, KEY_BLACK), px + dx, py + dy)
-                canvas.blit(tiles.cell(corner_cell(corners[j], j),
-                                       CORNER_BACKGROUND), px + dx, py + dy)
+                canvas.blit(tiles.corner(corners[j], j), px + dx, py + dy)
 
 
 def _settlement(canvas, tiles, p1, p2, x, y, px, py):

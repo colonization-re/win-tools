@@ -125,9 +125,17 @@ the coastline pieces. Those are runtime palette indices, so subtract the 40 the
 loader installs this canvas at: **9** the grey ground, **41** the orange rule,
 **95** black.
 
-A coastline piece is keyed *twice*, because it is extracted twice: on black when
-it is cut from the sheet, and on the ground again when the composite of open
-water and the piece is extracted. Both end up transparent.
+A coastline piece is keyed *twice*, because it is extracted twice — and the
+**order** decides what a coast looks like. The builder cuts the piece keying out
+black, draws a 16 × 16 square of open water, draws the piece over it, and then
+extracts *that* keying out the ground. So a pixel the piece paints in the ground
+colour covers the water first and is dropped second: it becomes a **hole**, and
+what shows through it is the square's base tile — the land behind the coast.
+
+Read the other way round — "the ground colour is transparent, so the water below
+shows" — every coastal square comes out a solid block of water and the coastline
+steps in squares. Codes 1 and 3 to 7 all carry ground pixels; in code 7 they are
+a quarter of the piece.
 
 This tool used to flood the background inward from each cell's border instead,
 which is a reasonable thing to do when you are cutting pictures out of a sheet
