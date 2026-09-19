@@ -13,9 +13,10 @@ formats come from is in
 
 | | |
 | --- | --- |
-| [**Using the tool**](usage.md) | the six commands, every option, and what each one prints |
+| [**Using the tool**](usage.md) | the seven commands, every option, and what each one prints |
 | [**What is in each file**](files.md) | all 64 files of an install, and what each one holds |
 | [**Formats**](formats/) | the layouts, one page each |
+| [**Map preview**](map-preview.md) | drawing a `.SAV` or `.MP` as one PNG, and what each layer rests on |
 | [**Palettes**](palettes.md) | why sprite colours are not stored anywhere, and what to do about it |
 | [**Editing**](editing.md) | extracting, changing art or text, and putting it back |
 
@@ -32,4 +33,4 @@ reproduce identical pixels and palettes, and all 13 modules rebuild
 byte-identical when nothing has been edited.
 
 The numbers on these pages are checked the same way. `tests/test_docs.py`
-re-derives all 38 of them from an install and fails if a page has drifted.
+re-derives all 42 of them from an install and fails if a page has drifted.

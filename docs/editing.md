@@ -86,6 +86,6 @@ encoder.
 `python3 tests/test_roundtrip.py /path/to/game` runs the same ground as 19
 tests, including a full edit → build → re-extract cycle.
 
-`python3 tests/test_docs.py /path/to/game` re-derives all 38 numbers on these
+`python3 tests/test_docs.py /path/to/game` re-derives all 42 numbers on these
 pages from the install and fails if any of them has drifted — a document is the
 one artefact nothing re-runs.

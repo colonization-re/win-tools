@@ -1,7 +1,9 @@
 # `.SAV` — saved games
 
-`AUTO01.SAV`, 25,585 bytes, is the only save that ships. `colwin` does not read
-or write it; this page records what is known.
+`AUTO01.SAV`, 25,585 bytes, is the only save that ships. `colwin` reads its
+four map planes — `colwin map-preview` draws them as a PNG, see
+[map preview](../map-preview.md) — and writes nothing back. This page records
+what is known.
 
 **The structure is solved; the meanings are not.** All 57 fields have a known
 offset and size and they account for the file exactly — 25,585 computed against
@@ -25,5 +27,13 @@ from. `1008:9056` is the matching loader, calling the read forwarder 56 times.
 
 ## What is open
 
-Which plane is terrain and which is ownership, and what the 202-, 28- and
-18-byte records hold. Nothing carries such a label.
+What the 202-, 28- and 18-byte records hold. Nothing carries such a label,
+though drawing the planes puts one cross-check on the table: this save has 84
+native villages against its 84 18-byte records, and 1 European colony against
+its single 202-byte record. See [map preview](../map-preview.md).
+
+Which plane is which is no longer open. Plane 0 is terrain, plane 1 a bitfield
+of what has been built on a square, plane 2 a nation index in each nibble and
+plane 3 a per-nation bitmask in the high one — established in win-decomp from
+the map accessor library at `1038:b4b6`, which is four identical families of
+functions, one per plane, and from the writers that set each bit.

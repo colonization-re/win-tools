@@ -1,7 +1,8 @@
 # `.MP` — map files
 
-One ships with the game: `AMER2.MP`, 12,534 bytes. `colwin` does not currently
-read or write it; this page records the layout, which is solved.
+One ships with the game: `AMER2.MP`, 12,534 bytes. `colwin` reads it —
+`colwin map-preview` draws it as a PNG, see [map preview](../map-preview.md) —
+and does not write it. This page records the layout, which is solved.
 
 ```
 WORD  width          58
@@ -24,11 +25,16 @@ interleaving of three per-tile fields produces a lane that is entirely zero.
 
 ## The planes
 
-**Plane 0 — terrain.** 87 distinct values. The two commonest are 25 (2,109
-tiles) and 26 (810), together just under half the map. Rendering one colour per
-value draws the Americas unmistakably — North, Central and South America, the
-Caribbean chain, Florida, the Gulf of Mexico, Baja California — which is what
-identifies 25 and 26 as water. The other 85 values are **UNKNOWN**.
+**Plane 0 — terrain**, and the byte is a bitfield rather than an id: the low
+five bits are a terrain id when bit `0x20` is clear, bit `0x20` means hills and
+with bit `0x80` mountains, bit `0x40` a river and with `0x80` a major one.
+That is `terrain_from_map_byte` (`1040:42b5`), and it is what turns the 87
+distinct values into the 29 terrains of the game's own `TERRAIN0..TERRAIN28`
+table. The two commonest values are 25 (2,109 tiles) and 26 (810) — ocean and
+sea lane — together just under half the map. Drawn through the game's own tile
+art the plane is the Americas: North, Central and South America, the Caribbean
+chain, Florida, the Gulf of Mexico, Baja California, with the Rockies and the
+Andes where they belong.
 
 **Plane 1 — all zero.** Purpose UNKNOWN. It is not padding: it sits between two
 live planes. A second shipped file would settle whether it is always zero, and

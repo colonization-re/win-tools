@@ -4,7 +4,10 @@ import os
 import sys
 
 from . import __version__
+from .formats.mapfile import MapError
+from .mapview import MapviewError, render_file
 from .ne import Module
+from .tileset import TILE, TilesetError
 from .workspace import Workspace, WorkspaceError, is_ne
 
 EPILOG = """\
@@ -13,6 +16,7 @@ typical session:
   ... edit ws/sprites/**/*.png in an indexed-mode paint program ...
   colwin status  ws
   colwin build   ws --out=patched
+  colwin map-preview save/AUTO01.SAV ~/games/colonization --out=map.png
 """
 
 
@@ -123,6 +127,22 @@ def cmd_verify(args):
     return 1 if failures or bad else 0
 
 
+def cmd_map_preview(args):
+    r = render_file(args.map, args.game, args.out, plain=args.plain,
+                    tile_size=args.tile)
+    print("%s: a %dx%d %s map, planes at %#06x"
+          % (os.path.basename(args.map), r["width"], r["height"], r["kind"],
+             r["map_start"]))
+    if r["kind"] == "SAV":
+        print("    %d settlement(s): %d colon(ies), %d village(s)"
+              % (r["settlements"], r["colonies"], r["villages"]))
+    else:
+        print("    terrain and coastline only: a .MP has no settlement plane")
+    print("\nwrote %s, %dx%d pixels at %d px a square"
+          % (args.out, r["image"][0], r["image"][1], args.tile))
+    return 0
+
+
 def cmd_palette(args):
     ws = Workspace.open(args.workspace)
     if args.set:
@@ -187,6 +207,19 @@ def main(argv=None):
     q.add_argument("--game")
     q.set_defaults(fn=cmd_verify)
 
+    q = sub.add_parser("map-preview",
+                       help="draw a .SAV or .MP map as one PNG, in the game's art")
+    q.add_argument("map", help="a saved game (.SAV) or a map file (.MP)")
+    _game_arg(q)
+    q.add_argument("--out", required=True, help="the PNG to write")
+    q.add_argument("--tile", type=int, default=TILE, metavar="PX",
+                   help="pixels a square, 1 to %d (default %d)" % (TILE, TILE))
+    q.add_argument("--plain", action="store_true",
+                   help="draw only what the game's own draw routine "
+                        "establishes: no plowed icon, no settlements, whose "
+                        "cells on the art sheet are identified by eye")
+    q.set_defaults(fn=cmd_map_preview)
+
     q = sub.add_parser("palette", help="show, or change, how indices are coloured")
     q.add_argument("workspace")
     q.add_argument("--set", metavar="RULE",
@@ -197,6 +230,9 @@ def main(argv=None):
     args = p.parse_args(argv)
     try:
         return args.fn(args)
+    except (MapError, MapviewError, TilesetError) as e:
+        print("colwin: %s" % e, file=sys.stderr)
+        return 2
     except WorkspaceError as e:
         print("colwin: %s" % e, file=sys.stderr)
         return 2

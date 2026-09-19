@@ -18,6 +18,8 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from colwin import mapview                                          # noqa: E402
+from colwin.formats import mapfile                                  # noqa: E402
 from colwin.ne import Module                                        # noqa: E402
 from colwin.formats import cvpc, sprt                               # noqa: E402
 from colwin.palette import ctab_parse, ctab_teal_index              # noqa: E402
@@ -28,6 +30,7 @@ FILES = "docs/files.md"
 SPRT = "docs/formats/sprt.md"
 CVPC = "docs/formats/cvpc.md"
 CTAB = "docs/formats/ctab.md"
+MAP = "docs/map-preview.md"
 NE = "docs/formats/ne-container.md"
 GAME = os.environ.get("COLWIN_GAME")
 
@@ -162,6 +165,25 @@ def measure(game):
     m["wav_n"] = len(wav)
     m["wav_fmts"] = fmts
     m["wav_secs"] = secs
+
+    # The map region of the two files that ship with a map in them.
+    mp = os.path.join(game, "AMER2.MP")
+    if os.path.exists(mp):
+        d = mapfile.load(mp)
+        m["mp_size"] = (d["width"], d["height"])
+    sav = os.path.join(game, "AUTO01.SAV")
+    if os.path.exists(sav):
+        d = mapfile.load(sav)
+        m["sav_start"] = d["map_start"]
+        m["sav_records"] = d["record_counts"]
+        p1, p2 = d["planes"][1], d["planes"][2]
+        tally = collections.Counter()
+        for i, b in enumerate(p1):
+            if not b & mapview.P1_SETTLEMENT:
+                continue
+            nation = p2[i] >> 4
+            tally["colony" if nation < mapview.EUROPEAN_COUNT else "village"] += 1
+        m["sav_settlements"] = tally
     return m
 
 
@@ -232,6 +254,23 @@ def checks(m):
                                                                 m["teal_lo"], m["teal_hi"]), CTAB),
         ("NE alignment", "**9** (512 bytes) in every module here", NE),
     ]
+    if "mp_size" in m:
+        out.append(("MP image size", "the shipped %d \u00d7 %d map is a %d \u00d7 %d image"
+                    % (m["mp_size"][0], m["mp_size"][1],
+                       m["mp_size"][0] * 32, m["mp_size"][1] * 32), MAP))
+    if "sav_start" in m:
+        t = m["sav_settlements"]
+        r = m["sav_records"]
+        out += [
+            ("save map offset", "planes at %#06x" % m["sav_start"], MAP),
+            ("save settlements",
+             "**%d squares with the settlement bit set: %d owned by a\nEuropean "
+             "nation and %d by a native one.**"
+             % (sum(t.values()), t["colony"], t["village"]), MAP),
+            ("save record counts",
+             "**%d records of 18 bytes, %d of 28 and %d of 202**"
+             % (r["18B"], r["28B"], r["202B"]), MAP),
+        ]
     # The count of checks is itself a documented figure, so it is checked too --
     # three pages state it, and adding those three is what makes the total.
     n = len(out) + 3

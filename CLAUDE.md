@@ -23,15 +23,17 @@ python3 colwin.py status ws
 python3 colwin.py build ws --out=patched       # --nearest, --fill-holes=N, --modules-only
 python3 colwin.py verify ws                    # re-encode everything, compare to the game
 python3 colwin.py palette ws [--set=RULE]      # swap view palettes, pixel indices untouched
+python3 colwin.py map-preview MAP GAME --out=map.png   # a .SAV or .MP drawn as one PNG
 
 python3 tests/test_roundtrip.py /path/to/game  # 19 tests; codec tests run without a game
-python3 tests/test_docs.py /path/to/game       # re-derives the 38 figures in docs/
+python3 tests/test_map.py /path/to/game        # 19 tests; format and mask tests run without a game
+python3 tests/test_docs.py /path/to/game       # re-derives the 42 figures in docs/
 
 python3 tools/release.py minor --dry-run       # what the next release would say
 python3 tools/release.py minor                 # test, changelog, bump, commit, tag
 ```
 
-Both test scripts take the game directory as `argv[1]` or via `$COLWIN_GAME`;
+All three test scripts take the game directory as `argv[1]` or via `$COLWIN_GAME`;
 without one, asset tests skip and the codec/palette/PNG tests still run. That is
 exactly what CI does ([.github/workflows/test.yml](.github/workflows/test.yml)) —
 so a change that only passes with a game is not covered by CI, and vice versa.
@@ -44,7 +46,9 @@ so a change that only passes with a game is not covered by CI, and vice versa.
 | [colwin/png.py](colwin/png.py) | PNG read/write, stdlib only |
 | [colwin/palette.py](colwin/palette.py) | the palette model, CTAB parsing, the injectivity rule |
 | [colwin/workspace.py](colwin/workspace.py) | extract / status / build / verify, and the manifest |
-| [colwin/formats/](colwin/formats/) | `sprt`, `cvpc`, `lzw`, `text`, `dib`, `flic` |
+| [colwin/formats/](colwin/formats/) | `sprt`, `cvpc`, `lzw`, `text`, `dib`, `flic`, `mapfile` |
+| [colwin/tileset.py](colwin/tileset.py) | the map tile cells of `CVPC 201`, and what each one rests on |
+| [colwin/mapview.py](colwin/mapview.py) | `map-preview`: the layering of `1038:d8f8`, applied to every square |
 | [colwin/cli.py](colwin/cli.py) | argparse front end; [colwin.py](colwin.py) runs it uninstalled |
 | [docs/](docs/) | the reference site (built and deployed to GitHub Pages by [.github/workflows/pages.yml](.github/workflows/pages.yml)) |
 | [tools/release.py](tools/release.py) | cuts a release: tests, `CHANGELOG.md`, version bump, tag |

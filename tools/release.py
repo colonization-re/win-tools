@@ -15,7 +15,8 @@ What one run does, in order, stopping at the first thing that is wrong:
   1. refuses unless the checkout is clean, on the main branch, and not behind
      the remote (the release is pushed from here, so what is here has to be
      what everyone else has);
-  2. runs `tests/test_roundtrip.py` and `tests/test_docs.py` -- with the game
+  2. runs `tests/test_roundtrip.py`, `tests/test_map.py` and
+     `tests/test_docs.py` -- with the game
      directory if `--game` or `$COLWIN_GAME` names one, and with a warning if
      not, because the asset tests skip without it;
   3. drafts the changelog section from the commits since the last `v*` tag and
@@ -185,7 +186,8 @@ def run_tests(args):
               "tests will skip and only the codec, palette and PNG tests run")
     elif not os.path.isdir(game):
         fail("--game %s is not a directory" % game)
-    suites = [["tests/test_roundtrip.py"], ["tests/test_docs.py"]]
+    suites = [["tests/test_roundtrip.py"], ["tests/test_map.py"],
+              ["tests/test_docs.py"]]
     for suite in suites:
         cmd = [sys.executable] + suite + ([game] if game else [])
         print("release: %s" % " ".join(cmd))

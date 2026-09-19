@@ -1,6 +1,6 @@
 # Using colwin
 
-`colwin` is a single command-line program with six subcommands. It reads an
+`colwin` is a single command-line program with seven subcommands. It reads an
 installed copy of the game, writes the assets out as ordinary files, and puts
 them back into a fresh copy of the install. It never writes to the install it
 read from.
@@ -282,6 +282,37 @@ re-viewed 915 sprite PNGs through `ctab:111`; no pixel index changed
 
 So a better palette costs one command rather than a re-extraction, and edits you
 made under the old view survive it intact.
+
+---
+
+## `map-preview` — draw a save or a map as a PNG
+
+```sh
+python3 colwin.py map-preview AUTO01.SAV ~/games/colonization --out=map.png
+python3 colwin.py map-preview AMER2.MP  ~/games/colonization --out=map.png --tile=8
+```
+
+| Option | |
+| --- | --- |
+| `--out=FILE` | the PNG to write |
+| `--tile=PX` | pixels a square, 1 to 32 (default 32, the size the game draws) |
+| `--plain` | draw only what the game's draw routine establishes: no plowed squares, no settlements |
+
+This one needs no workspace: it reads the map file and takes the art straight
+out of the install's `COLDATA1.DLL`.
+
+```
+AUTO01.SAV: a 58x72 SAV map, planes at 0x1cd3
+    85 settlement(s): 1 colon(ies), 84 village(s)
+
+wrote map.png, 1856x2304 pixels at 32 px a square
+```
+
+The squares are drawn in the order `1038:d8f8` draws them — base square,
+forest, plowed, hills, mountains, river, roads, coastline — and a `.MP` draws
+terrain and coastline only, because its other two planes are not solved.
+[Map preview](map-preview.md) is the long version: which layer rests on
+what, and the four things the tool declines to draw.
 
 ---
 

@@ -32,6 +32,18 @@ python3 colwin.py status ws
 python3 colwin.py build  ws --out=patched        # a complete, playable install
 ```
 
+And to look at a saved game:
+
+```sh
+python3 colwin.py map-preview AUTO01.SAV ~/games/colonization --out=map.png
+```
+
+draws the whole map as one PNG in the game's own art — terrain, forests, hills
+and mountains, rivers, roads, coastline and settlements — in the order the
+game's own square-painting routine draws them. It works on `.SAV` saves and on
+`.MP` map files, needs no workspace, and [Map preview](docs/map-preview.md)
+says which layer rests on what evidence and which four it declines to draw.
+
 [Using the tool](docs/usage.md) is the long version, with every option.
 
 ## What round-trips, and how well
@@ -54,8 +66,9 @@ install file for file, because a file whose hash has not changed is never
 re-encoded at all — its original bytes go straight back.
 
 `python3 tests/test_roundtrip.py /path/to/game` runs all of that as 19 tests,
+`python3 tests/test_map.py /path/to/game` puts the map renderer through 19 more,
 including a full edit → build → re-extract cycle, and
-`python3 tests/test_docs.py /path/to/game` re-derives all 38 numbers in
+`python3 tests/test_docs.py /path/to/game` re-derives all 42 numbers in
 [docs/](docs/) from the install and fails if any page has drifted from it.
 
 ## The palette problem, and what this does about it
@@ -141,7 +154,7 @@ Pages source has to be set to "GitHub Actions" for that to publish.
 
 | | |
 | --- | --- |
-| [Using the tool](docs/usage.md) | the six commands, every option, and what each one prints |
+| [Using the tool](docs/usage.md) | the seven commands, every option, and what each one prints |
 | [What is in each file](docs/files.md) | all 64 files of an install, and what each one holds |
 | [Formats](docs/formats/) | the layouts, one page each, with the evidence for each |
 | [Palettes](docs/palettes.md) | why sprite colours are stored nowhere, and the rule that follows |

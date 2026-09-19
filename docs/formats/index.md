@@ -15,8 +15,8 @@ refer to is in
 | [`TEXT`](text.md) | 737, mostly `COLTEXT0` | re-encodes byte-identical |
 | [`FLIC`](flic.md) | 1, in `COLDATA7` | decoded; carried through on rebuild |
 | [Windows DIBs](dib.md) | bitmaps, icons, cursors | bitmaps round-trip |
-| [`.MP` maps](mp-map.md) | `AMER2.MP` | solved, not written by `colwin` |
-| [`.SAV` saves](save.md) | `AUTO01.SAV` | structure solved, meanings open |
+| [`.MP` maps](mp-map.md) | `AMER2.MP` | solved; read by `map-preview`, not written |
+| [`.SAV` saves](save.md) | `AUTO01.SAV` | structure solved; the map planes are read by `map-preview` |
 | [ARCV](arcv.md) | `COLONIZE.$00` | solved |
 
 ## Not solved
