@@ -164,6 +164,17 @@ MASK_CELLS = {0: (553, 24, TILE, TILE), 1: (553, 57, TILE, TILE),
 MASK_KEEP = 95              # canvas black: what the mask lets through
 MASK_SIDES = ("n", "e", "s", "w")   # d = 0..3, read off the four masks
 
+# The river mouths, icons 0x8d..0x90 (major) and 0x91..0x94 (minor), one per
+# orthogonal direction in `g_ortho` order -- north, east, south, west. Cut by the
+# builder at these exact coordinates; the 415 in the major row is not a typo of
+# 416, the two rows really are spaced differently.
+INLET_CELLS = {
+    True: {0: (375, 401, TILE, TILE), 1: (415, 401, TILE, TILE),
+           2: (454, 401, TILE, TILE), 3: (494, 401, TILE, TILE)},
+    False: {0: (375, 438, TILE, TILE), 1: (416, 438, TILE, TILE),
+            2: (454, 438, TILE, TILE), 3: (494, 438, TILE, TILE)},
+}
+
 # From the builder as well: icon 0x96 is (304, 397), the first furrow cell.
 PLOWED_CELL = (304, 397, TILE, TILE)     # icon 0x96, from the builder
 COLONY_CELL = (663, 203, TILE, TILE)
@@ -179,6 +190,7 @@ CELL_EVIDENCE = {
     "forest": "code: icon 0x41 + mask, and the art's edges agree",
     "road": "code: icon 0x51 isolated, else 0x52 + direction",
     "coast": "code: icon g_4c6e[j] * 4 + j + 0x6d, four 16x16 pieces",
+    "inlet": "code: icons 0x8d + d major, 0x91 + d minor, on a water square",
     "shore": "code: icons 0x97..0x9a, and each cell's open edges match its pattern",
     "plowed": "inferred: icon 0x96 has no established cell; identified by eye",
     "settlement": "inferred: no load site derives settlement art from a nation",

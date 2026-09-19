@@ -288,6 +288,39 @@ class SeamArt(unittest.TestCase):
                 self.assertTrue(full[i], "seam paints where the square does not")
 
 
+class RiverMouths(unittest.TestCase):
+    """Where a river meets the sea, or a lake it feeds."""
+
+    def plane(self, rows):
+        h = len(rows)
+        w = len(rows[0])
+        return mapview.Plane(bytes(b for row in rows for b in row), w, h)
+
+    def test_a_mouth_for_every_land_neighbour_that_carries_a_river(self):
+        sea, minor, major = mapview.OCEAN, 4 | mapview.RIVER, 4 | mapview.RIVER | mapview.HIGH
+        p = self.plane([[4, minor, 4], [4, sea | mapview.RIVER, minor], [4, 4, 4]])
+        is_major, mouths = mapview.river_mouths(p, 1, 1)
+        self.assertFalse(is_major)
+        self.assertEqual(sorted(mouths), [0, 1])       # north and east
+        p = self.plane([[4, major, 4], [4, sea | mapview.RIVER | mapview.HIGH, 4],
+                        [4, 4, 4]])
+        is_major, mouths = mapview.river_mouths(p, 1, 1)
+        self.assertTrue(is_major, "the square's own high bit picks the major art")
+        self.assertEqual(mouths, [0])
+
+    def test_no_mouth_without_the_square_s_own_bits(self):
+        sea, minor = mapview.OCEAN, 4 | mapview.RIVER
+        p = self.plane([[4, minor, 4], [4, sea, 4], [4, 4, 4]])
+        self.assertEqual(mapview.river_mouths(p, 1, 1), (False, []))
+
+    def test_a_river_flowing_from_water_is_not_a_mouth(self):
+        """The neighbour has to be LAND: sea-to-sea is not an estuary."""
+        sea = mapview.OCEAN
+        p = self.plane([[4, sea | mapview.RIVER, 4],
+                        [4, sea | mapview.RIVER, 4], [4, 4, 4]])
+        self.assertEqual(mapview.river_mouths(p, 1, 1)[1], [])
+
+
 class Cells(unittest.TestCase):
     def test_corner_pieces_tile_the_square(self):
         seen = set()

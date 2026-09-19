@@ -7,6 +7,7 @@ square in turn:
     every square                   base square    kind = class & 7 below 0x18
                                    terrain seams  up to four, one per side
     water with land beside it      THE LAND'S tile, not the ocean's
+                                   river mouths   icon 0x8d + d, minor 0x91 + d
     water with no land around it   the ocean tile, and nothing else
     everything else                forest         icon 0x41 + mask
                                    plowed         icon 0x96
@@ -55,10 +56,9 @@ says which.
 """
 from . import png
 from .formats import mapfile
-from .tileset import (Tileset, TILE, BASE_CELLS, COLONY_CELL, CORNER_BACKGROUND,
-                      CORNER_WATER, KEY_BLACK, KEY_RULE, PLOWED_CELL,
-                      SHORE_CELLS, VILLAGE_CELLS, band_cell, corner_cell,
-                      corner_offset)
+from .tileset import (Tileset, TILE, BASE_CELLS, COLONY_CELL, INLET_CELLS,
+                      KEY_RULE, PLOWED_CELL, SHORE_CELLS, VILLAGE_CELLS,
+                      band_cell, corner_offset)
 
 # terrain.h, from the game's own TERRAIN0..TERRAIN28 resources.
 TERRAIN_MASK = 0x1f
@@ -247,6 +247,27 @@ def seams(p0, x, y):
     return out
 
 
+def river_mouths(p0, x, y):
+    """(major, directions) for a water square a river runs into.
+
+    `map_draw_square_1040_14d4` keeps the square's own bits `0xc0` from before
+    the scan overwrote its terrain -- which is what that early `river =` is for
+    -- and if either is set it draws icon `0x8d + d` for a major river or
+    `0x91 + d` for a minor one, once for every orthogonal neighbour that is
+    LAND and carries a river of its own. Without this a river simply stops at
+    the shore, and a lake it feeds sits unconnected beside it.
+    """
+    river = p0.at(x, y) & (RIVER | HIGH)
+    if not river:
+        return False, []
+    out = []
+    for dx, dy, d in SEAM_SIDES:
+        t = p0.at(x + dx, y + dy)
+        if t & RIVER and not is_water(terrain_class(t)):
+            out.append(d)
+    return bool(river & HIGH), out
+
+
 def shore_piece(land):
     """Which whole-edge shore square, if any, the land around this water fits.
 
@@ -407,6 +428,9 @@ def _square(canvas, tiles, p0, p1, x, y, px, py, plain):
             for j in range(4):
                 dx, dy = corner_offset(j)
                 canvas.blit(tiles.corner(corners[j], j), px + dx, py + dy)
+        major, mouths = river_mouths(p0, x, y)
+        for d in mouths:
+            canvas.blit(tiles.cell(INLET_CELLS[major][d]), px, py)
 
 
 def _settlement(canvas, tiles, p1, p2, x, y, px, py):

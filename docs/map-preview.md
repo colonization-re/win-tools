@@ -42,6 +42,7 @@ map square, and this applies it to every square in turn:
 | river | `0x11 + mask`, major `0x01 + mask` | plane 0 bit `0x40`, with `0x80` |
 | roads | `0x51`, else `0x52 + direction` | plane 1 bits `0xa` |
 | coastline | four corner pieces, `0x6d + code × 4 + j`, or one shore square | water with land around it |
+| river mouths | `0x8d + d` major, `0x91 + d` minor | a water square a river runs into |
 | settlements | — | plane 1 bit `0x02`, owner from plane 2's high nibble |
 
 ### A coastal water square is drawn on the land behind it
@@ -61,6 +62,18 @@ tundra against tundra. Open sea takes the ocean tile, which is why the class is
 saved into `wter` before the scan runs; a square with land only on its diagonals
 has nothing written to it and keeps its own tile too. On the shipped map, **370
 of the 517 coastal squares** are drawn on the land behind them.
+
+### Where a river meets the sea, or a lake
+
+A water square keeps river bits of its own in plane 0, and the draw routine
+reads them at the top — before the scan overwrites the square's terrain, which
+is what that early read is for. If either bit is set it draws a mouth for every
+orthogonal neighbour that is **land and carries a river**, `0x8d + d` for a
+major river and `0x91 + d` for a minor one, in the same `g_ortho` order.
+
+Thirty of `AMER2.MP`'s water squares carry those bits, between them 33 mouths.
+Without the layer a river stops dead at the shore and a lake it feeds sits
+unconnected beside it, which is exactly what it looks like.
 
 ### The seams are what make terrain meet terrain
 
