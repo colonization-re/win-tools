@@ -6,7 +6,8 @@ square in turn:
 
     every square                   base square    kind = class & 7 below 0x18
                                    terrain seams  up to four, one per side
-    water with no land around it   and nothing else
+    water with land beside it      THE LAND'S tile, not the ocean's
+    water with no land around it   the ocean tile, and nothing else
     everything else                forest         icon 0x41 + mask
                                    plowed         icon 0x96
                                    hills          icon 0x31 + mask
@@ -133,26 +134,37 @@ def neighbour_class(p0, x, y):
 
 
 def scan_neighbours(p0, x, y):
-    """(count, corner codes, land mask) for the eight squares around this one.
+    """(count, corner codes, land mask, last orthogonal land) around a square.
 
     Even directions are the orthogonals and set bit 2 of their own corner and
     bit 0 of the next; odd ones are the diagonals and set bit 1 of one corner.
+
+    The fourth value is the one that matters most and is easy to miss: the scan
+    leaves the last ORTHOGONAL land neighbour's terrain in `g_sq_p0`/`g_sq_class`
+    (DGROUP 0x4c9c/0x4c9d), overwriting the square's own -- and
+    `map_draw_square_1040_14d4` reads those AFTER calling it. So a coastal water
+    square is drawn on the neighbouring LAND's tile, with the shore pieces over
+    it, which is what gives a beach the colour of the land behind it.
     """
     corners = [0, 0, 0, 0]
     count = 0
     bits = 0
+    land = None
     for i, (dx, dy) in enumerate(RING):
-        if is_water(neighbour_class(p0, x + dx, y + dy)):
+        cls = neighbour_class(p0, x + dx, y + dy)
+        if is_water(cls):
             continue
         count += 1
         bits |= 1 << i
+        if not i & 1:
+            land = cls
         if i & 1:
             corners[((i + 1) & 7) >> 1] |= 2
         else:
             j = i >> 1
             corners[j] |= 4
             corners[(j + 1) & 3] |= 1
-    return count, corners, bits
+    return count, corners, bits, land
 
 
 def coast_land_group(p0, x, y):
@@ -342,7 +354,13 @@ def _square(canvas, tiles, p0, p1, x, y, px, py, plain):
     water = is_water(cls)
     count = 0
     if water:
-        count, corners, land = scan_neighbours(p0, x, y)
+        count, corners, land, behind = scan_neighbours(p0, x, y)
+        if behind is not None:
+            # The scan overwrote the square's class with the land behind the
+            # coast, and the drawer reads it back: the beach is drawn on that
+            # land's tile. With land only on the diagonals nothing was written
+            # and the square keeps its own class, so the water tile stays.
+            cls = behind
     if water and count == 0:
         canvas.blit(tiles.cell(BASE_CELLS[cls]), px, py)
         _seams(canvas, tiles, p0, x, y, px, py, plain)

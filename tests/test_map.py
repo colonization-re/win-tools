@@ -124,11 +124,28 @@ class Masks(unittest.TestCase):
     def test_a_lone_land_square_gives_every_corner_the_full_code(self):
         land, sea = 4, mapview.OCEAN
         p = self.plane([[sea] * 3, [sea, land, sea], [sea] * 3])
-        count, corners, _land = mapview.scan_neighbours(p, 1, 1)
+        count, corners, _land, _behind = mapview.scan_neighbours(p, 1, 1)
         self.assertEqual(count, 0)              # the land square itself is centre
-        count, corners, _land = mapview.scan_neighbours(p, 0, 0)
+        count, corners, _land, _behind = mapview.scan_neighbours(p, 0, 0)
         self.assertEqual(count, 1)              # the land square, diagonally
         self.assertEqual(corners, [0, 0, 2, 0])
+
+    def test_the_scan_reports_the_land_behind_a_coast(self):
+        """It overwrites the square's own class, and the drawer reads it back.
+
+        The last ORTHOGONAL land neighbour wins -- west over south, south over
+        east, east over north -- and a water square with land only on its
+        diagonals reports nothing, so it keeps its own tile.
+        """
+        sea, desert, grass = mapview.OCEAN, 1, 4
+        p = self.plane([[sea, grass, sea], [desert, sea, sea], [sea, sea, sea]])
+        self.assertEqual(mapview.scan_neighbours(p, 1, 1)[3], desert)  # west wins
+        p = self.plane([[sea, grass, sea], [sea, sea, sea], [sea, sea, sea]])
+        self.assertEqual(mapview.scan_neighbours(p, 1, 1)[3], grass)
+        p = self.plane([[grass, sea, sea], [sea, sea, sea], [sea, sea, sea]])
+        count, _c, _b, behind = mapview.scan_neighbours(p, 1, 1)
+        self.assertEqual(count, 1)              # a diagonal, so it is a coast
+        self.assertIsNone(behind)               # but nothing was written
 
     def test_hilly_mask_matches_only_the_same_kind(self):
         hills, mountains = 0x20, 0xa0

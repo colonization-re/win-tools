@@ -41,8 +41,26 @@ map square, and this applies it to every square in turn:
 | hills / mountains | `0x31 + mask` / `0x21 + mask` | plane 0 bit `0x20`, with `0x80` |
 | river | `0x11 + mask`, major `0x01 + mask` | plane 0 bit `0x40`, with `0x80` |
 | roads | `0x51`, else `0x52 + direction` | plane 1 bits `0xa` |
-| coastline | four corner pieces, `0x6d + code × 4 + j` | water with land around it |
+| coastline | four corner pieces, `0x6d + code × 4 + j`, or one shore square | water with land around it |
 | settlements | — | plane 1 bit `0x02`, owner from plane 2's high nibble |
+
+### A coastal water square is drawn on the land behind it
+
+This is the one that makes a beach look like a beach, and it is easy to read
+straight past. `neighbor_terrain_scan_1040_02cc` does not only count land and
+fill in the corner codes: as it goes it **overwrites the square's own terrain
+and class** at DGROUP `0x4c9c`/`0x4c9d` with the last ORTHOGONAL land
+neighbour's — west wins over south, south over east, east over north — and
+`map_draw_square_1040_14d4` reads those back *after* calling it, to choose the
+base tile.
+
+So a water square with land beside it is painted on **that land's tile**, and
+the shore art goes over the top. The four shore squares leave their land side
+clear, so what shows through is sand against desert, grass against grassland,
+tundra against tundra. Open sea takes the ocean tile, which is why the class is
+saved into `wter` before the scan runs; a square with land only on its diagonals
+has nothing written to it and keeps its own tile too. On the shipped map, **370
+of the 517 coastal squares** are drawn on the land behind them.
 
 ### The seams are what make terrain meet terrain
 
