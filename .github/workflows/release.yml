@@ -1,0 +1,90 @@
+name: release
+
+# Pushing a tag is what publishes a release. `python3 tools/release.py <bump>`
+# writes the changelog section, bumps `colwin/__init__.py`, commits and tags;
+# this job re-checks that tag against the package, re-runs the tests, builds
+# the two downloads and writes the release notes from the same changelog
+# section. Nothing here is generated twice from two sources.
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 3.9 is the floor the tools promise, so the .pyz is built on it.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: The tag and the package must agree
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          package=$(python3 -c 'import colwin; print(colwin.__version__)')
+          if [ "$version" != "$package" ]; then
+            echo "tag $GITHUB_REF_NAME says $version, colwin.__version__ says $package" >&2
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      # As in tests.yml: the asset tests need a copy of the game, which this
+      # repository does not ship and CI cannot have, so they report as skipped.
+      - name: Tests
+        run: |
+          python3 tests/test_roundtrip.py
+          python3 tests/test_docs.py
+          python3 colwin.py --help
+
+      - name: Release notes from CHANGELOG.md
+        run: |
+          awk -v v="$VERSION" '
+            $0 ~ "^## " v " " { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then
+            echo "CHANGELOG.md has no '## $VERSION - <date>' section" >&2
+            exit 1
+          fi
+          cat notes.md
+
+      # Two downloads: a single runnable file for people who just want the
+      # tool, and the checkout itself for people who want the docs and tests.
+      - name: Build the .pyz and the source .zip
+        run: |
+          mkdir -p dist build/stage
+          cp -r colwin build/stage/
+          find build/stage -name '__pycache__' -type d -exec rm -rf {} +
+          printf 'import sys\n\nfrom colwin.cli import main\n\nsys.exit(main())\n' \
+            > build/stage/__main__.py
+          python3 -m zipapp build/stage \
+            -p '/usr/bin/env python3' -o "dist/colwin-$VERSION.pyz"
+          git archive --format=zip --prefix="colwin-$VERSION/" \
+            -o "dist/colwin-$VERSION.zip" "$GITHUB_REF_NAME"
+
+      - name: The built .pyz must run and report the same version
+        run: |
+          reported=$(python3 "dist/colwin-$VERSION.pyz" --version)
+          if [ "$reported" != "colwin $VERSION" ]; then
+            echo "the zipapp reports '$reported'" >&2
+            exit 1
+          fi
+          python3 "dist/colwin-$VERSION.pyz" --help > /dev/null
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "colwin $VERSION" \
+            --notes-file notes.md \
+            "dist/colwin-$VERSION.pyz" "dist/colwin-$VERSION.zip"

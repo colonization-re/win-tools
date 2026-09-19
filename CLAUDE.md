@@ -26,6 +26,9 @@ python3 colwin.py palette ws [--set=RULE]      # swap view palettes, pixel indic
 
 python3 tests/test_roundtrip.py /path/to/game  # 19 tests; codec tests run without a game
 python3 tests/test_docs.py /path/to/game       # re-derives the 38 figures in docs/
+
+python3 tools/release.py minor --dry-run       # what the next release would say
+python3 tools/release.py minor                 # test, changelog, bump, commit, tag
 ```
 
 Both test scripts take the game directory as `argv[1]` or via `$COLWIN_GAME`;
@@ -44,6 +47,25 @@ so a change that only passes with a game is not covered by CI, and vice versa.
 | [colwin/formats/](colwin/formats/) | `sprt`, `cvpc`, `lzw`, `text`, `dib`, `flic` |
 | [colwin/cli.py](colwin/cli.py) | argparse front end; [colwin.py](colwin.py) runs it uninstalled |
 | [docs/](docs/) | the reference site (built and deployed to GitHub Pages by [.github/workflows/pages.yml](.github/workflows/pages.yml)) |
+| [tools/release.py](tools/release.py) | cuts a release: tests, `CHANGELOG.md`, version bump, tag |
+
+## Releasing
+
+The version is one line, `__version__` in
+[colwin/\_\_init\_\_.py](colwin/__init__.py); `colwin --version` and the
+`colwin_version` field of a manifest both read it from there, and
+[tools/release.py](tools/release.py) is the only thing that edits it. One run
+refuses a dirty or stale checkout, runs both suites, drafts the `CHANGELOG.md`
+section from the commits since the last `v*` tag, opens it in `$EDITOR`, bumps
+the version, commits, and writes an annotated tag `v<version>`.
+
+Pushing that tag is what publishes:
+[.github/workflows/release.yml](.github/workflows/release.yml) re-checks the
+tag against `__version__`, re-runs the tests, builds a runnable single-file
+`colwin-<version>.pyz` (`python3 -m zipapp`, on 3.9) plus a source `.zip`, and
+creates the GitHub release with the notes taken from that same changelog
+section. The workflow reads the section by its `## <version> - <date>` heading,
+so keep that heading line when editing the draft.
 
 ## Invariants to preserve
 
