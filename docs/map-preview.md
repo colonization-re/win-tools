@@ -231,6 +231,13 @@ next to the running game is not a bug in this tool.
 **Units.** Plane 1 bit `0x01` says a square holds one. Nothing in the planes
 says which, and the tool does not guess.
 
+**The fog of war.** `map_draw_square_1040_14d4` covers a square with the fog
+sprite when the viewer's bit is clear in plane 3, and `draw_neighbor_sprite`
+speckles the edge of every square whose neighbour is still dark —
+`build_edge_sprites_1008_4dbe` builds those sixteen sprites out of icon `0x95`,
+the flat blue square, masked by the same four seam masks the terrain uses. Both
+need a *viewer*; a map drawn from a file has none, so every square is shown.
+
 **Colours and pictures for nations.** The settlement art and the four European
 colours are a **presentation choice**, marked `inferred` in
 `colwin/tileset.py`: no load site derives a settlement's picture from a nation,

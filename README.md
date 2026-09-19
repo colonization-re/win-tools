@@ -32,19 +32,59 @@ python3 colwin.py status ws
 python3 colwin.py build  ws --out=patched        # a complete, playable install
 ```
 
-And to look at a saved game:
+And to look at a saved game — no workspace needed:
 
 ```sh
 python3 colwin.py map-preview AUTO01.SAV ~/games/colonization --out=map.png
 ```
 
-draws the whole map as one PNG in the game's own art — terrain, forests, hills
-and mountains, rivers, roads, coastline and settlements — in the order the
-game's own square-painting routine draws them. It works on `.SAV` saves and on
-`.MP` map files, needs no workspace, and [Map preview](docs/map-preview.md)
-says which layer rests on what evidence and which four it declines to draw.
-
 [Using the tool](docs/usage.md) is the long version, with every option.
+
+## Drawing a map
+
+`map-preview` reads a `.SAV` or a `.MP` and writes the whole map as one PNG in
+the game's own art:
+
+```
+AUTO01.SAV: a 58x72 SAV map, planes at 0x1cd3
+    85 settlement(s): 1 colon(ies), 84 village(s)
+
+wrote map.png, 1856x2304 pixels at 32 px a square
+```
+
+`--tile=8` draws the same map at 464 × 576 for a thumbnail; `--plain` leaves
+out everything whose cell is not pinned by the game's own code.
+
+**It does not have a renderer of its own.** It replays `1040:14d4`, the routine
+that paints one map square, once per square — in that routine's order, with its
+masks and its arithmetic:
+
+| | |
+| --- | --- |
+| base square | the terrain's low three bits — and for a **coastal water square**, the land behind it, because the neighbour scan overwrites the square's own class before the drawer reads it back |
+| terrain seams | up to four, one per side, each the neighbour's terrain seen through a mask sprite |
+| forest, plowed, hills, mountains, rivers, roads | one band each, indexed by a four-bit neighbour code: **N 8, S 4, W 2, E 1** |
+| coastline | four corner pieces, or one of four whole-edge shore squares when the land around matches one of four exact patterns |
+| river mouths | where a river runs into the sea, or into a lake it feeds |
+| settlements | from the settlement bit and the owner nibble |
+
+The art comes out of `CVPC 201` in `COLDATA1.DLL` with the rectangles and key
+colours `load_all_sprite_sheets` (`1008:51d4`) uses to cut its 217 sprites at
+start-up. Sprites the game *builds* rather than cuts are built the same way
+here: a seam is a terrain square masked by one of four mask sprites, and a
+coastline corner is open water with a coast piece over it, keyed afterwards —
+and in both cases the **order** is what makes the picture, which is the sort of
+thing these tools are for finding out.
+
+Two layers are deliberately absent, both because the file cannot supply them:
+the scenery and prime resources, which the game hashes out of a seed that is
+not one of the 57 fields a save writes, and the fog of war, which needs a
+viewer. [Map preview](docs/map-preview.md) is the long version, layer by layer,
+with what each one rests on.
+
+No rendered map ships in this repository: the pixels are the game's artwork,
+and the same rule applies to them as to everything else here — bring your own
+copy and draw your own.
 
 ## What round-trips, and how well
 
@@ -66,8 +106,11 @@ install file for file, because a file whose hash has not changed is never
 re-encoded at all — its original bytes go straight back.
 
 `python3 tests/test_roundtrip.py /path/to/game` runs all of that as 19 tests,
-`python3 tests/test_map.py /path/to/game` puts the map renderer through 19 more,
-including a full edit → build → re-extract cycle, and
+including a full edit → build → re-extract cycle;
+`python3 tests/test_map.py /path/to/game` puts the map renderer through 42 more,
+re-deriving the tile set's rules from the canvas — that each band cell paints
+the edge its mask names, that each coastline piece leans the way its code says,
+that a seam mask keeps 64 pixels along one edge and no others; and
 `python3 tests/test_docs.py /path/to/game` re-derives all 42 numbers in
 [docs/](docs/) from the install and fails if any page has drifted from it.
 
@@ -144,6 +187,7 @@ These are refused with an explanation rather than silently mangled:
 | `build WS --out=DIR` | write a complete install with your edits in it |
 | `verify WS` | re-encode everything and compare with the game |
 | `palette WS [--set=RULE]` | show the view palettes, or swap them |
+| `map-preview MAP GAME --out=PNG` | draw a `.SAV` or `.MP` map, `--tile=` for the size |
 
 ## Documentation
 
@@ -157,6 +201,7 @@ Pages source has to be set to "GitHub Actions" for that to publish.
 | [Using the tool](docs/usage.md) | the seven commands, every option, and what each one prints |
 | [What is in each file](docs/files.md) | all 64 files of an install, and what each one holds |
 | [Formats](docs/formats/) | the layouts, one page each, with the evidence for each |
+| [Map preview](docs/map-preview.md) | every layer of a map square and the code each one comes from |
 | [Palettes](docs/palettes.md) | why sprite colours are stored nowhere, and the rule that follows |
 | [Editing](docs/editing.md) | the workflow, and what gets refused |
 
@@ -167,7 +212,10 @@ colwin/ne.py          Win16 NE containers: read the resource table, write it bac
 colwin/png.py         PNG in and out, stdlib only
 colwin/palette.py     the palette model and the injectivity rule
 colwin/workspace.py   extract / status / build / verify
-colwin/formats/       sprt, cvpc, lzw, ctab (in palette.py), text, dib, flic
+colwin/tileset.py     the map tile set: which cell, which key colour, what for
+colwin/mapview.py     map-preview: 1040:14d4's layering, square by square
+colwin/formats/       sprt, cvpc, lzw, ctab (in palette.py), text, dib, flic,
+                      mapfile (.MP and the map planes of a .SAV)
 docs/                 the reference site
 tests/                the test suite; the asset tests need a copy of the game
 ```
