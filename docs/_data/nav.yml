@@ -1,0 +1,46 @@
+# The site's navigation, written out rather than globbed: the order is an
+# editorial choice, so it should be visible in a diff.
+#
+#   title   what the tab says
+#   url     relative to the site root
+#   match   a page whose URL starts with this marks the tab active
+main:
+  - title: Using the tool
+    url: /usage.html
+    match: /usage
+  - title: Files
+    url: /files.html
+    match: /files
+  - title: Formats
+    url: /formats/
+    match: /formats/
+  - title: Palettes
+    url: /palettes.html
+    match: /palettes
+  - title: Editing
+    url: /editing.html
+    match: /editing
+
+# The second row, shown only under /formats/. Same order as the table on
+# docs/formats/index.md.
+formats:
+  - title: NE container
+    url: /formats/ne-container.html
+  - title: SPRT
+    url: /formats/sprt.html
+  - title: CVPC
+    url: /formats/cvpc.html
+  - title: CTAB
+    url: /formats/ctab.html
+  - title: TEXT
+    url: /formats/text.html
+  - title: FLIC
+    url: /formats/flic.html
+  - title: DIB
+    url: /formats/dib.html
+  - title: .MP
+    url: /formats/mp-map.html
+  - title: .SAV
+    url: /formats/save.html
+  - title: ARCV
+    url: /formats/arcv.html

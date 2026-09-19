@@ -25,9 +25,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
-      # `docs/_config.yml` names the cayman theme and `jekyll-relative-links`;
-      # both come with the github-pages gem set this action builds against, so
-      # the site renders exactly as the branch-and-folder setting rendered it.
+      # The site is `docs/_layouts/default.html` over `docs/assets/col.css`; the
+      # only plugins `docs/_config.yml` names come with the github-pages gem
+      # set this action builds against, so it renders exactly as the
+      # branch-and-folder setting rendered it.
       - uses: actions/jekyll-build-pages@v1
         with:
           source: ./docs

@@ -50,7 +50,7 @@ so a change that only passes with a game is not covered by CI, and vice versa.
 | [colwin/tileset.py](colwin/tileset.py) | the map tile cells of `CVPC 201`, and what each one rests on |
 | [colwin/mapview.py](colwin/mapview.py) | `map-preview`: the layering of `1038:d8f8`, applied to every square |
 | [colwin/cli.py](colwin/cli.py) | argparse front end; [colwin.py](colwin.py) runs it uninstalled |
-| [docs/](docs/) | the reference site (built and deployed to GitHub Pages by [.github/workflows/pages.yml](.github/workflows/pages.yml)) |
+| [docs/](docs/) | the reference site (built and deployed to GitHub Pages by [.github/workflows/pages.yml](.github/workflows/pages.yml)); one Jekyll layout, [docs/\_layouts/default.html](docs/_layouts/default.html), over [docs/assets/col.css](docs/assets/col.css) — a **copy** of `dist/col.css` from `../web-ui`, the project's shared design system. Update it by copying the file again; nothing builds it here. The Markdown pages carry no front matter on purpose, so they still read in the GitHub file browser |
 | [tools/release.py](tools/release.py) | cuts a release: tests, `CHANGELOG.md`, version bump, tag |
 
 ## Releasing

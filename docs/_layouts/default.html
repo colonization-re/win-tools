@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+{%- seo -%}
+<link rel="stylesheet" href="{{ '/assets/col.css' | relative_url }}">
+<link rel="stylesheet" href="{{ '/assets/docs.css' | relative_url }}">
+<script>
+/* Before the first paint, so a remembered theme does not flash. */
+try {
+  var t = sessionStorage.getItem("col-theme");
+  if (t && t !== "auto") { document.documentElement.dataset.theme = t; }
+} catch (e) {}
+</script>
+</head>
+<body class="col-ruled">
+
+<div class="col-bar">
+  <div class="col-bar-in">
+    <a class="col-brand" href="{{ '/' | relative_url }}">
+      <span class="col-brand-mark"></span> colwin</a>
+    <span class="col-badge col-badge--line">Reference</span>
+    <div class="col-push col-row">
+      <a class="col-btn col-btn--quiet col-btn--sm"
+         href="https://github.com/colonization-re/win-tools">Repository</a>
+      <div class="col-segmented" id="theme">
+        <button type="button" data-t="light">Light</button>
+        <button type="button" data-t="dark">Dark</button>
+        <button type="button" data-t="auto" class="is-active">Auto</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="col-wrap">
+
+{%- comment -%}
+  The eyebrow names the section a page belongs to; there is no front matter in
+  docs/, so it comes from the path. `page.title` is the page's own first
+  heading (jekyll-titles-from-headings), which is why `.doc--titled` hides that
+  heading again -- it is shown here, in the plate.
+{%- endcomment -%}
+{%- assign is_home = false -%}
+{%- if page.url == '/' or page.url == '/index.html' -%}{%- assign is_home = true -%}{%- endif -%}
+{%- assign in_formats = false -%}
+{%- if page.url contains '/formats/' -%}{%- assign in_formats = true -%}{%- endif -%}
+{%- if is_home -%}{%- assign eyebrow = 'Reference' -%}
+{%- elsif page.url == '/formats/' or page.url == '/formats/index.html' -%}{%- assign eyebrow = 'Reference' -%}
+{%- elsif in_formats -%}{%- assign eyebrow = 'Format' -%}
+{%- else -%}{%- assign eyebrow = 'Guide' -%}
+{%- endif -%}
+
+<header class="col-plate">
+  <p class="col-eyebrow">{{ eyebrow }}</p>
+  <h1>{{ page.title | default: site.title }}</h1>
+  {%- if is_home %}
+  <p class="col-lead">{{ site.description }}</p>
+  {%- comment -%}
+    Nothing here is a measurement: a figure in the layout would be the one
+    number on the site that tests/test_docs.py does not re-derive.
+  {%- endcomment -%}
+  <dl class="col-plate-meta">
+    <div><dt>Runs on</dt><dd>Python 3.9+</dd></div>
+    <div><dt>Dependencies</dt><dd>None</dd></div>
+    <div><dt>Licence</dt><dd>MIT</dd></div>
+  </dl>
+  {%- endif %}
+</header>
+
+<nav class="col-tabs site-nav" aria-label="Sections">
+  {%- for item in site.data.nav.main %}
+  <a class="col-tab{% if page.url contains item.match %} is-active{% endif %}"
+     href="{{ item.url | relative_url }}">{{ item.title }}</a>
+  {%- endfor %}
+</nav>
+
+{%- if in_formats %}
+<nav class="col-tabs site-nav" aria-label="Formats">
+  {%- for item in site.data.nav.formats %}
+  <a class="col-tab{% if page.url == item.url %} is-active{% endif %}"
+     href="{{ item.url | relative_url }}">{{ item.title }}</a>
+  {%- endfor %}
+</nav>
+{%- endif %}
+
+<div class="doc{% if page.title %} doc--titled{% endif %}">
+{{ content }}
+</div>
+
+<footer class="col-foot site-foot">
+  <span>Built from <code>docs/</code> in the repository; every figure on these
+    pages is re-derived from a real install by the test suite.</span>
+  <a class="col-push" href="https://github.com/colonization-re/win-tools">win-tools</a>
+  <a href="https://github.com/colonization-re/win-decomp">win-decomp</a>
+</footer>
+
+</div>
+
+<script>
+/* The theme follows the system until a reader picks one, and the pick is
+   remembered for the session. col.css reads data-theme on <html>. */
+(function () {
+  var root = document.documentElement, seg = document.getElementById("theme");
+  function apply(t) {
+    if (t === "auto") { delete root.dataset.theme; } else { root.dataset.theme = t; }
+    for (var i = 0; i < seg.children.length; i++) {
+      seg.children[i].classList.toggle("is-active", seg.children[i].dataset.t === t);
+    }
+    try { sessionStorage.setItem("col-theme", t); } catch (e) {}
+  }
+  seg.addEventListener("click", function (e) {
+    var b = e.target.closest("button");
+    if (b) { apply(b.dataset.t); }
+  });
+  try {
+    var saved = sessionStorage.getItem("col-theme");
+    if (saved) { apply(saved); }
+  } catch (e) {}
+})();
+</script>
+
+</body>
+</html>

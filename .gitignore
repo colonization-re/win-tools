@@ -4,6 +4,7 @@ __pycache__/
 /workspace
 /build
 /out
+/output
 .DS_Store
 /_site
 /dist

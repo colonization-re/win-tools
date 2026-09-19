@@ -1,0 +1,106 @@
+/* docs.css - The little the reference site needs on top of col.css.
+ *
+ * Markdown cannot put a class on what it emits, so everything here styles the
+ * bare elements kramdown produces inside `.doc` -- tables, blockquotes, lists --
+ * to the components the design system already defines. Design tokens only; no
+ * literal colours, so both themes follow.
+ */
+
+.doc > :first-child{margin-top:0}
+
+/* Tables. `.col-table` right-aligns figures; these are mostly prose, so they
+   read left. The wrapper `.col-tablewrap` draws is folded into the table. */
+.doc table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:14px;
+  margin:0 0 24px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  overflow:hidden;
+  display:table;
+}
+.doc th{
+  background:var(--surface-2);
+  font-family:var(--font-mono);
+  font-size:10.5px;
+  font-weight:500;
+  letter-spacing:.11em;
+  text-transform:uppercase;
+  color:var(--text-3);
+  text-align:left;
+  padding:10px 14px;
+  border-bottom:1px solid var(--border-strong);
+}
+.doc td{
+  padding:11px 14px;
+  text-align:left;
+  color:var(--text-2);
+  border-bottom:1px solid var(--rule);
+  vertical-align:top;
+}
+.doc td:first-child{color:var(--text)}
+.doc tbody tr:last-child td{border-bottom:0}
+.doc tbody tr:hover{background:var(--surface-2)}
+.doc td[align="right"],.doc th[align="right"]{
+  text-align:right;font-variant-numeric:tabular-nums}
+
+/* Several pages use a two-column table with no header as a definition list.
+   Kramdown still emits the empty header row; drop it where every cell is
+   empty. Browsers without `:has()` get the row, which is what they get today. */
+.doc thead:not(:has(th:not(:empty))){display:none}
+
+/* A blockquote here is an aside, not a quotation -- the same shape as
+   `.col-note--line`. */
+.doc blockquote{
+  --_c:var(--line);
+  margin:0 0 20px;
+  padding:12px 16px;
+  font-size:14px;
+  color:var(--text-2);
+  background:color-mix(in srgb,var(--_c) 7%,var(--surface));
+  border:1px solid color-mix(in srgb,var(--_c) 32%,transparent);
+  border-left:2px solid var(--_c);
+  border-radius:var(--r-sm);
+}
+.doc blockquote > :last-child{margin-bottom:0}
+.doc blockquote strong{color:var(--text)}
+
+.doc ul,.doc ol{margin:0 0 1em;padding-left:1.4em}
+.doc li{margin:0 0 .35em}
+.doc li > ul,.doc li > ol{margin-top:.35em}
+
+/* A heading you can link to says so on hover. */
+.doc h2,.doc h3{position:relative}
+.doc h2[id]:hover::before,.doc h3[id]:hover::before{
+  content:"#";
+  position:absolute;
+  left:-.85em;
+  color:var(--line);
+  font-family:var(--font-mono);
+  font-weight:400;
+}
+@media (max-width:820px){
+  .doc h2[id]:hover::before,.doc h3[id]:hover::before{content:none}
+}
+
+.doc img{max-width:100%;height:auto}
+
+/* Section nav. `.col-tabs` is built for buttons; these are links. */
+.site-nav .col-tab{display:inline-block;text-decoration:none}
+
+.site-foot{display:flex;gap:10px 22px;flex-wrap:wrap;align-items:center}
+.site-foot a{color:var(--text-3)}
+.site-foot a:hover{color:var(--brand)}
+
+/* The page's own first heading is shown in the plate instead; see
+   docs/_layouts/default.html. It stays in the Markdown so the file still reads
+   as a document in the GitHub file browser. */
+.doc--titled > h1:first-child{
+  position:absolute;
+  width:1px;height:1px;
+  margin:-1px;padding:0;border:0;
+  overflow:hidden;clip-path:inset(50%);
+  white-space:nowrap;
+}

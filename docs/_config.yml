@@ -2,12 +2,31 @@ title: colwin
 description: >-
   Reading and writing the asset files of Sid Meier's Colonization for
   Windows (1995).
-theme: jekyll-theme-cayman
 show_downloads: false
-# `jekyll-relative-links` is on by default for GitHub Pages, so the .md links
-# in these pages resolve both here and in the GitHub file browser.
+
+# No Jekyll theme. The site is one layout (`_layouts/default.html`) over the
+# project's shared stylesheet, `assets/col.css` -- a copy of `col.css` from
+# colonization-re/web-ui, so these pages look like the project's other web
+# tools. Pages get that layout from the default below rather than front matter,
+# because the Markdown files carry none: they are meant to read as plain
+# documents in the GitHub file browser too.
+#
+# `jekyll-relative-links` (on by default for GitHub Pages) is what makes the
+# .md links in them resolve in both places; `jekyll-optional-front-matter`
+# renders the files at all, and `jekyll-titles-from-headings` is where
+# `page.title` -- the heading the layout puts in the plate -- comes from.
 plugins:
   - jekyll-relative-links
+  - jekyll-optional-front-matter
+  - jekyll-titles-from-headings
+  - jekyll-seo-tag
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
+
 exclude:
   - Gemfile
   - Gemfile.lock
