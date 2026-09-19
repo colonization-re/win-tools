@@ -4,6 +4,7 @@
     python3 tools/release.py patch              # 0.1.0 -> 0.1.1
     python3 tools/release.py minor --push
     python3 tools/release.py 1.0.0 --dry-run
+    python3 tools/release.py 0.1.0 --notes-file notes.md   # prose you wrote
 
 The version lives in one place, `colwin/__init__.py`; `colwin --version` and the
 `colwin_version` field of a workspace manifest both read it from there. This
@@ -18,7 +19,8 @@ What one run does, in order, stopping at the first thing that is wrong:
      directory if `--game` or `$COLWIN_GAME` names one, and with a warning if
      not, because the asset tests skip without it;
   3. drafts the changelog section from the commits since the last `v*` tag and
-     opens it in `$EDITOR` for you to turn into prose;
+     opens it in `$EDITOR` for you to turn into prose (or takes a section you
+     have already written, with `--notes-file`);
   4. writes it into `CHANGELOG.md`, bumps `__version__`, and checks that the
      bumped package really reports the new version;
   5. commits the two files and writes an annotated tag `v<version>` carrying
@@ -265,6 +267,35 @@ def draft(version, date, commits, prev):
     return "\n".join(lines).rstrip() + "\n"
 
 
+def notes_from(path, version, date, prev):
+    """A section written by hand instead of drafted from the commits.
+
+    The file is the body of the section; the heading and the compare link are
+    added around it. A file that brings its own `## <version> - <date>` heading
+    is taken exactly as it stands.
+    """
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            text = f.read().strip()
+    except IOError as e:
+        fail("cannot read %s: %s" % (path, e))
+    if not text:
+        fail("%s is empty" % path)
+    if text.startswith("## "):
+        heading = text.split("\n", 1)[0]
+        if not heading.startswith("## %s " % version):
+            fail("%s leads with %r; the release workflow looks for a "
+                 "'## %s - <date>' heading" % (path, heading, version))
+        return text + "\n"
+    lines = ["## %s - %s" % (version, date), "", text, ""]
+    if prev:
+        lines.append("[Compare with %s](%s/compare/%s...v%s)"
+                     % (prev, PROJECT_URL, prev, version))
+    else:
+        lines.append("[Commits](%s/commits/v%s)" % (PROJECT_URL, version))
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def edit(text):
     editor = os.environ.get("EDITOR") or os.environ.get("VISUAL")
     if not editor:
@@ -317,6 +348,9 @@ def main(argv=None):
                    help="say what would happen; write nothing, tag nothing")
     p.add_argument("--no-edit", action="store_true",
                    help="keep the drafted changelog section as it is")
+    p.add_argument("--notes-file", metavar="PATH",
+                   help="a changelog section you have written, in place of "
+                        "the drafted commit list (implies --no-edit)")
     p.add_argument("--skip-tests", action="store_true",
                    help="do not run the test suites first")
     p.add_argument("--game", metavar="DIR",
@@ -344,9 +378,12 @@ def main(argv=None):
         run_tests(args)
 
     date = datetime.date.today().isoformat()
-    section = draft(new, date, commits, prev)
-    if not args.no_edit and not args.dry_run:
-        section = edit(section)
+    if args.notes_file:
+        section = notes_from(args.notes_file, new, date, prev)
+    else:
+        section = draft(new, date, commits, prev)
+        if not args.no_edit and not args.dry_run:
+            section = edit(section)
 
     if args.dry_run:
         print("\nrelease: --dry-run, nothing written. The section would be:\n")
