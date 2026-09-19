@@ -147,6 +147,22 @@ class Masks(unittest.TestCase):
         self.assertEqual(count, 1)              # a diagonal, so it is a coast
         self.assertIsNone(behind)               # but nothing was written
 
+    def test_the_forest_blend_counts_forests_but_never_scrub(self):
+        """`tile_passable_1040_00d5`: t < 0x18, (t & 7) != 1, and t > 7.
+
+        Scrub forest -- ids 9 and 17, the desert group -- does not count as a
+        neighbouring forest, and nor does open land, arctic or water. A hilly
+        square does: the predicate reads the low five bits and never looks at
+        bit 5, so a mountain over conifer forest blends like conifer forest.
+        """
+        conifer, scrub, desert, hilly_conifer = 12, 9, 1, 12 | 0x20
+        p = self.plane([[0, conifer, 0], [scrub, conifer, desert],
+                        [0, mapview.OCEAN, 0]])
+        self.assertEqual(mapview.forest_mask(p, 1, 1), 8)     # north only
+        p = self.plane([[0, hilly_conifer, 0], [conifer, conifer, 20],
+                        [0, mapview.ARCTIC, 0]])
+        self.assertEqual(mapview.forest_mask(p, 1, 1), 8 + 2 + 1)
+
     def test_hilly_mask_matches_only_the_same_kind(self):
         hills, mountains = 0x20, 0xa0
         p = self.plane([[0, mountains, 0], [hills, hills, mountains], [0, 0, 0]])

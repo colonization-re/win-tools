@@ -91,7 +91,23 @@ per orthogonal direction, before anything is drawn:
 | anything else, including a land square beside open water | none |
 
 The group is why a forest seams as the terrain underneath it, and why
-grassland against conifer forest has no seam at all: both are group 4.
+grassland against conifer forest has no seam at all: both are group 4. It is
+also why **a mountain has no edge against the land beside it** when the two
+share a group — the seam reads the low five bits, so a mountain over desert is
+still desert. On `AMER2.MP` that silences 48 of the 84 edges where a mountain
+meets flat desert, while every mountain-over-prairie edge against desert, 17 of
+them, is seamed. The mountain art covers the square either way, so what a
+transition would show is the base tile at the art's own ragged edge.
+
+### Which neighbours a forest blends into
+
+`tile_passable_1040_00d5`, which both copies of `neighbor_mask` call and both
+reconstructions carry as a stub, reads the neighbour's low five bits and answers
+yes only when `t < 0x18`, `(t & 7) != 1` and `t > 7`. So the blend counts
+forests, **not scrub forest** — ids 9 and 17, the desert group — and not open
+land, arctic or water. It never looks at bit 5, so a mountain over conifer
+forest blends like conifer forest: 301 of the 435 hilly neighbours a forest has
+on the shipped map are counted.
 
 A land square beside water asks `cell_draw_terrain_1008_7e2d` what that water
 draws as, and the answer is not `0x19` but **the group of the land the water's

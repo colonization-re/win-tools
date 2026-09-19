@@ -285,13 +285,23 @@ def shore_piece(land):
 def forest_mask(p0, x, y):
     """Which orthogonal neighbours the forest blends into.
 
-    The predicate itself is `tile_passable_1038_d44f`, which the reconstruction
-    carries as a stub, so "the neighbour is also forest" is **inferred** from
-    what the band draws rather than read off the code.
+    `tile_passable_1040_00d5`, which both copies of `neighbor_mask` call and
+    both reconstructions carry as a stub, reads the neighbour's low five bits
+    and answers yes only when all three hold:
+
+        t < 0x18        not arctic, ocean or sea lane
+        (t & 7) != 1    its GROUP is not desert -- so SCRUB forest, ids 9 and
+                        17, does not count as a neighbouring forest
+        t > 7           it is a forest, ids 8..23
+
+    The scrub exclusion is the one that shows: counting those made the band
+    pick the wrong variant wherever a wood met the desert, which is the
+    neighbour it most often has.
     """
     m = 0
     for dx, dy, bit in ORTHO:
-        if is_forest(terrain_class(p0.at(x + dx, y + dy))):
+        t = terrain_class(p0.at(x + dx, y + dy))
+        if t < ARCTIC and t & 7 != 1 and t > 7:
             m += bit
     return m
 
