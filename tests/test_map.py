@@ -22,8 +22,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from colwin import mapview                                          # noqa: E402
 from colwin import png as pnglib                                    # noqa: E402
 from colwin.formats import mapfile                                  # noqa: E402
-from colwin.tileset import (BANDS, BASE_CELLS, Tileset, band_cell,   # noqa: E402
-                            corner_cell, corner_offset)
+from colwin.tileset import (BANDS, BASE_CELLS, SEAM_PROFILE, Tileset,  # noqa: E402
+                            band_cell, corner_cell, corner_offset)
 
 GAME = os.environ.get("COLWIN_GAME")
 _tiles = {}
@@ -133,6 +133,79 @@ class Masks(unittest.TestCase):
         p = self.plane([[0, mountains, 0], [hills, hills, mountains], [0, 0, 0]])
         self.assertEqual(mapview.hilly_mask(p, 1, 1, hills), 2)
         self.assertEqual(mapview.hilly_mask(p, 1, 1, mountains), 9)
+
+
+class Seams(unittest.TestCase):
+    """`build_terrain_seams_1008_7ec9`, on hand-built planes."""
+
+    def plane(self, rows):
+        h = len(rows)
+        w = len(rows[0])
+        return mapview.Plane(bytes(b for row in rows for b in row), w, h)
+
+    def test_the_same_group_has_no_seam_between_it(self):
+        # 4 is grassland and 12 is conifer forest: the same group, 4 % 8.
+        p = self.plane([[4, 12, 4], [12, 4, 12], [4, 12, 4]])
+        self.assertEqual(mapview.seams(p, 1, 1), [])
+
+    def test_a_different_group_seams_on_that_side_showing_the_neighbour(self):
+        p = self.plane([[4, 1, 4], [4, 4, 4], [4, 4, 4]])
+        self.assertEqual(mapview.seams(p, 1, 1), [("n", 1)])
+        p = self.plane([[4, 4, 4], [4, 4, 2], [4, 6, 4]])
+        self.assertEqual(sorted(mapview.seams(p, 1, 1)), [("e", 2), ("s", 6)])
+
+    def test_a_forest_seams_as_its_group_not_its_id(self):
+        # 13 is tropical forest: group 5, savannah. Against grassland, group 4.
+        p = self.plane([[4, 13, 4], [4, 4, 4], [4, 4, 4]])
+        self.assertEqual(mapview.seams(p, 1, 1), [("n", 5)])
+
+    def test_arctic_seams_as_itself(self):
+        p = self.plane([[4, 24, 4], [4, 4, 4], [4, 4, 4]])
+        self.assertEqual(mapview.seams(p, 1, 1), [("n", mapview.ARCTIC)])
+
+    def test_land_beside_open_water_gets_no_seam(self):
+        """cell_draw_terrain answers 0x19 or -1, and the branch takes neither."""
+        p = self.plane([[4, 25, 4], [26, 4, 25], [4, 25, 4]])
+        self.assertEqual(mapview.seams(p, 1, 1), [])
+
+    def test_the_two_waters_seam_against_each_other_both_ways(self):
+        p = self.plane([[25, 26, 25], [25, 25, 25], [25, 25, 25]])
+        self.assertEqual(mapview.seams(p, 1, 1), [("n", mapview.SEA_LANE)])
+        p = self.plane([[26, 25, 26], [26, 26, 26], [26, 26, 26]])
+        self.assertEqual(mapview.seams(p, 1, 1), [("n", mapview.OCEAN)])
+
+
+class SeamArt(unittest.TestCase):
+    def test_the_profile_tapers_at_both_ends(self):
+        self.assertEqual(len(SEAM_PROFILE), 32)
+        self.assertLess(SEAM_PROFILE[0], max(SEAM_PROFILE) / 2)
+        self.assertLess(SEAM_PROFILE[-1], max(SEAM_PROFILE) / 2)
+
+    def test_a_seam_paints_its_own_edge_and_not_the_far_one(self):
+        tiles = tileset(game_or_skip(self))
+        box = BASE_CELLS[1]
+        for side, near, far in (("n", 0, 31), ("s", 31, 0),
+                                ("w", 0, 31), ("e", 31, 0)):
+            w, h, _rgb, opaque = tiles.seam(box, side)
+            if side in ("n", "s"):
+                on = sum(opaque[near * w + x] for x in range(w))
+                off = sum(opaque[far * w + x] for x in range(w))
+            else:
+                on = sum(opaque[y * w + near] for y in range(h))
+                off = sum(opaque[y * w + far] for y in range(h))
+            self.assertGreater(on, w / 2, "%s seam misses its edge" % side)
+            self.assertEqual(off, 0, "%s seam reaches the far edge" % side)
+
+    def test_a_seam_is_a_subset_of_the_square_it_is_cut_from(self):
+        tiles = tileset(game_or_skip(self))
+        box = BASE_CELLS[3]
+        _w, _h, rgb, full = tiles.cell(box)
+        _w, _h, seam_rgb, part = tiles.seam(box, "n")
+        self.assertEqual(rgb, seam_rgb)             # same pixels, fewer shown
+        self.assertLess(sum(part), sum(full))
+        for i, v in enumerate(part):
+            if v:
+                self.assertTrue(full[i], "seam paints where the square does not")
 
 
 class Cells(unittest.TestCase):

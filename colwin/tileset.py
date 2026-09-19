@@ -87,6 +87,23 @@ BASE_CELLS.update({24: (321, 39, TILE, TILE), 25: (321, 72, TILE, TILE),
 CORNER_X0, CORNER_PITCH, CORNER_INNER = 7, 36, 17
 CORNER_Y = (438, 455)
 
+# How deep the terrain seam reaches into the square, pixel by pixel along the
+# edge, and how many rows of thinning dither follow it. The numbers are a
+# drawing, not a measurement: the game's own 44 seam sprites are not among the
+# bytes it ships (see Tileset.seam), so this is chosen to look like what the
+# game draws rather than derived from it. One profile serves all four edges.
+#
+# It tapers to nothing at both ends, which is what keeps two seams meeting at a
+# corner from stacking into a square blob, and it is deliberately uneven so the
+# boundary reads as terrain rather than as a border.
+SEAM_PROFILE = (1, 2, 4, 5, 7, 6, 9, 11, 9, 7, 8, 10, 12, 10, 8, 7,
+                9, 11, 13, 11, 9, 8, 10, 12, 10, 8, 6, 7, 5, 4, 2, 1)
+SEAM_FRINGE = 5
+# Which pixel of the dithered fringe survives, row by row: the further in, the
+# sparser. Read as a 4x4 threshold, thinning from every other pixel to none.
+SEAM_DITHER = (2, 3, 5, 8, 12)
+_ORDERED_4X4 = (0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5)
+
 # Inferred, not established -- see the module docstring.
 PLOWED_CELL = (337, 397, TILE, TILE)
 COLONY_CELL = (663, 203, TILE, TILE)
@@ -196,5 +213,46 @@ class Tileset:
             opaque[i] = 1
             rgb[i * 3:i * 3 + 3] = bytes(self.palette[px[i]])
         out = (w, h, bytes(rgb), bytes(opaque))
+        self._cells[key] = out
+        return out
+
+    def seam(self, box, side):
+        """A terrain seam: the square `box`, kept only along one edge.
+
+        The game draws seams from a table of its own, `g_overlay_sprites`, and
+        **this is not that art**: no block of 44 seam cells is on the sheet, and
+        no canvas the game ships is one. What is reproduced is the *shape* of
+        the layer -- a ragged, dithered band of the neighbouring terrain lying
+        over this square's edge -- cut from that terrain's own square, so every
+        colour on the map is still the game's. See `SEAM_PROFILE`.
+        """
+        key = (box, side, "seam")
+        if key in self._cells:
+            return self._cells[key]
+        w, h, rgb, opaque = self.cell(box)
+        keep = bytearray(w * h)
+        for i in range(w):
+            depth = SEAM_PROFILE[i % len(SEAM_PROFILE)]
+            for j in range(depth + SEAM_FRINGE):
+                if j >= depth:
+                    # The fringe thins with depth: a 4x4 ordered dither, its
+                    # threshold falling row by row through SEAM_DITHER.
+                    thr = SEAM_DITHER[min(j - depth, len(SEAM_DITHER) - 1)]
+                    if _ORDERED_4X4[(j % 4) * 4 + i % 4] >= thr:
+                        continue
+                if side == "n":
+                    x, y = i, j
+                elif side == "s":
+                    x, y = i, h - 1 - j
+                elif side == "w":
+                    x, y = j, i
+                else:
+                    x, y = w - 1 - j, i
+                if 0 <= x < w and 0 <= y < h:
+                    keep[y * w + x] = 1
+        masked = bytearray(w * h)
+        for i in range(w * h):
+            masked[i] = 1 if (keep[i] and opaque[i]) else 0
+        out = (w, h, rgb, bytes(masked))
         self._cells[key] = out
         return out

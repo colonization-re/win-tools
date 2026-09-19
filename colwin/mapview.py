@@ -4,9 +4,10 @@ The layering is `1038:d8f8`, the function that paints a single map square
 (win-decomp `matched/game/draw_terrain_tile_1038_d8f8.c`), applied to every
 square in turn:
 
-    water with no land around it   one flat square, and nothing else
-    everything else                base square    kind = class & 7 below 0x18
-                                   forest         icon 0x41 + mask
+    every square                   base square    kind = class & 7 below 0x18
+                                   terrain seams  up to four, one per side
+    water with no land around it   and nothing else
+    everything else                forest         icon 0x41 + mask
                                    plowed         icon 0x96
                                    hills          icon 0x31 + mask
                                    mountains      icon 0x21 + mask
@@ -29,7 +30,14 @@ A save's plane 1 is a bitfield -- 0x02 a settlement, 0x08 a road, 0x40 plowed
 plane 1 is uniformly zero in the only shipped file and its plane 2 is
 **UNKNOWN**, so a `.MP` draws terrain and coastline only, and says so.
 
-## Three things this does not draw
+The seams are the layer that makes terrain meet terrain instead of butting up
+against it: `draw_tile_with_overlays` takes a four-byte list beside the base
+square and draws up to four overlay sprites from it, and
+`build_terrain_seams_1008_7ec9` is what fills that list. `seams()` below carries
+the rule. The *art* for them is the one thing here the game's own bytes do not
+supply -- see `Tileset.seam`.
+
+## Four things this does not draw
 
 **Scenery and prime resources.** `tile_decoration_1038_c066` hashes the
 square's position against `g_scenery_seed` (DGROUP `0x1ca6`), and that seed is
@@ -64,6 +72,8 @@ EUROPEAN_COUNT = 4
 RING = ((0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1))
 # N 8, S 4, W 2, E 1, in the order every mask helper tests them.
 ORTHO = ((0, -1, 8), (0, 1, 4), (-1, 0, 2), (1, 0, 1))
+# The same four neighbours, named by the edge of this square they touch.
+SEAM_SIDES = ((0, -1, "n"), (0, 1, "s"), (-1, 0, "w"), (1, 0, "e"))
 
 # Presentation, not a finding: no code binds a colour or a building to a
 # nation. The four European colours are the flags on the sheet; the villages
@@ -134,6 +144,47 @@ def scan_neighbours(p0, x, y):
             corners[j] |= 4
             corners[(j + 1) & 3] |= 1
     return count, corners
+
+
+def seams(p0, x, y):
+    """Which terrain seams this square carries, as (side, terrain id) pairs.
+
+    `build_terrain_seams_1008_7ec9` precomputes one byte per square per
+    orthogonal direction -- `0xff` for none -- and `draw_tile_with_overlays`
+    draws the base square plus up to four of them. The rule, on the low five
+    bits of plane 0:
+
+        neighbour below 0x18   a seam when its GROUP (terrain % 8) differs,
+                               showing that group:  (nb % 8) * 4 + direction
+        neighbour is 0x18      the arctic edge:     direction + 0x20
+        this square is 0x1a,
+        neighbour is 0x19      direction + 0x28
+        this square is 0x19,
+        neighbour is 0x1a      direction + 0x24
+
+    A land square beside shallow water gets **no** seam: the routine asks
+    `cell_draw_terrain_1008_7e2d` what the water draws as, and that answers
+    `0x19` for coastal water and -1 for open sea, neither of which the branch
+    accepts. The coastline corner pieces are what draw that boundary instead.
+    """
+    base = p0.at(x, y) & TERRAIN_MASK
+    out = []
+    for dx, dy, side in SEAM_SIDES:
+        nb = p0.at(x + dx, y + dy) & TERRAIN_MASK
+        if nb == base:
+            continue
+        if nb < ARCTIC:
+            if nb % 8 != base % 8:
+                out.append((side, nb % 8))
+        elif nb == ARCTIC:
+            out.append((side, ARCTIC))
+        elif nb == OCEAN:
+            if base == SEA_LANE:
+                out.append((side, OCEAN))
+        elif nb == SEA_LANE:
+            if base == OCEAN:
+                out.append((side, SEA_LANE))
+    return out
 
 
 def forest_mask(p0, x, y):
@@ -214,6 +265,14 @@ class Canvas(object):
                 self.buf[i:i + 3] = bytes(colour)
 
 
+def _seams(canvas, tiles, p0, x, y, px, py, plain):
+    """The four overlay slots of `draw_tile_with_overlays`, in the same place."""
+    if plain:
+        return
+    for side, terrain in seams(p0, x, y):
+        canvas.blit(tiles.seam(BASE_CELLS[terrain], side), px, py)
+
+
 def _square(canvas, tiles, p0, p1, x, y, px, py, plain):
     """One map square, in the order `1038:d8f8` paints it."""
     b0 = p0.at(x, y)
@@ -224,11 +283,13 @@ def _square(canvas, tiles, p0, p1, x, y, px, py, plain):
         count, corners = scan_neighbours(p0, x, y)
     if water and count == 0:
         canvas.blit(tiles.cell(BASE_CELLS[cls]), px, py)
+        _seams(canvas, tiles, p0, x, y, px, py, plain)
         return
 
     kind = cls & 7 if cls < 0x18 else cls
     base = 17 if (kind == 1 and is_forest(cls)) else kind
     canvas.blit(tiles.cell(BASE_CELLS[base]), px, py)
+    _seams(canvas, tiles, p0, x, y, px, py, plain)
 
     if kind != 1 and is_forest(cls):
         canvas.blit(tiles.cell(band_cell("forest", forest_mask(p0, x, y))), px, py)

@@ -215,9 +215,9 @@ def main(argv=None):
     q.add_argument("--tile", type=int, default=TILE, metavar="PX",
                    help="pixels a square, 1 to %d (default %d)" % (TILE, TILE))
     q.add_argument("--plain", action="store_true",
-                   help="draw only what the game's own draw routine "
-                        "establishes: no plowed icon, no settlements, whose "
-                        "cells on the art sheet are identified by eye")
+                   help="draw only what the game's own art supplies: no "
+                        "terrain seams, no plowed icon and no settlements, "
+                        "whose cells are identified by eye or drawn here")
     q.set_defaults(fn=cmd_map_preview)
 
     q = sub.add_parser("palette", help="show, or change, how indices are coloured")

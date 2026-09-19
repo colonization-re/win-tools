@@ -21,7 +21,7 @@ wrote map.png, 1856x2304 pixels at 32 px a square
 | `game` | an installed copy — the art comes out of its `COLDATA1.DLL` |
 | `--out` | the PNG to write |
 | `--tile=PX` | pixels a square, 1 to 32. The default is 32, the size the game draws |
-| `--plain` | draw only what the game's own routine establishes: no plowed squares, no settlements |
+| `--plain` | draw only what the game's own art supplies: no terrain seams, no plowed squares, no settlements |
 
 At the default size the shipped 58 × 72 map is a 1856 × 2304 image. `--tile=8`
 gives the same map as 464 × 576, which is the size to use for a thumbnail or a
@@ -35,6 +35,7 @@ map square, and this applies it to every square in turn:
 | Layer | Icon | From |
 | --- | --- | --- |
 | base square | `kind = class & 7` below `0x18`, else the class | plane 0, low five bits |
+| terrain seams | up to four overlays beside the base square | the neighbours' terrain groups |
 | forest | `0x41 + mask` | terrain ids 8–23 |
 | plowed | `0x96` | plane 1 bit `0x40` |
 | hills / mountains | `0x31 + mask` / `0x21 + mask` | plane 0 bit `0x20`, with `0x80` |
@@ -42,6 +43,28 @@ map square, and this applies it to every square in turn:
 | roads | `0x51`, else `0x52 + direction` | plane 1 bits `0xa` |
 | coastline | four corner pieces, `0x6d + code × 4 + j` | water with land around it |
 | settlements | — | plane 1 bit `0x02`, owner from plane 2's high nibble |
+
+### The seams are what make terrain meet terrain
+
+`draw_tile_with_overlays` does not just draw the base square: it takes a
+four-byte list beside it and draws up to four **overlay** sprites, skipping the
+`0xff`s. `build_terrain_seams_1008_7ec9` fills that list, one byte per square
+per orthogonal direction, before anything is drawn:
+
+| the neighbour | the seam |
+| --- | --- |
+| a land terrain whose **group** (`terrain % 8`) differs | `(nb % 8) * 4 + direction` — the neighbour's group |
+| arctic (`0x18`) | `direction + 0x20` |
+| shallow water, and this square is a sea lane | `direction + 0x28` |
+| a sea lane, and this square is shallow water | `direction + 0x24` |
+| anything else, including a land square beside open water | none |
+
+The group is why a forest seams as the terrain underneath it, and why
+grassland against conifer forest has no seam at all: both are group 4. A land
+square beside water gets none either — the routine asks
+`cell_draw_terrain_1008_7e2d` what the water draws as and gets `0x19` or `-1`,
+which that branch does not accept. The coastline corner pieces draw that
+boundary instead.
 
 Every `mask` is the same four-bit neighbour code — **N 8, S 4, W 2, E 1** —
 which is how every mask helper in the game weights its four neighbours
@@ -89,6 +112,16 @@ other pattern.
 
 **Units.** Plane 1 bit `0x01` says a square holds one. Nothing in the planes
 says which, and the tool does not guess.
+
+**The seam sprites.** The game holds 44 of them — eight land groups, the
+arctic edge and the two water boundaries, four directions each — in a table of
+its own, `g_overlay_sprites`. They are the one piece of map art this tool could
+not find: masking out every cell already accounted for leaves no block of 44 on
+the sheet, none of the 96 canvases the game ships is a seam sheet, and only 19
+of its 915 sprites are 32 × 32 at all. So the seam is drawn by taking the
+neighbouring terrain's **own square** and masking it to a ragged, dithered band
+along the shared edge. Every colour on the map is still the game's; the shape
+of that band is not, and `--plain` leaves the layer out.
 
 **Colours and pictures for nations.** The settlement art and the four European
 colours are a **presentation choice**, marked `inferred` in

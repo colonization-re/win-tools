@@ -296,7 +296,7 @@ python3 colwin.py map-preview AMER2.MP  ~/games/colonization --out=map.png --til
 | --- | --- |
 | `--out=FILE` | the PNG to write |
 | `--tile=PX` | pixels a square, 1 to 32 (default 32, the size the game draws) |
-| `--plain` | draw only what the game's draw routine establishes: no plowed squares, no settlements |
+| `--plain` | draw only what the game's own art supplies: no terrain seams, no plowed squares, no settlements |
 
 This one needs no workspace: it reads the map file and takes the art straight
 out of the install's `COLDATA1.DLL`.
@@ -309,9 +309,9 @@ wrote map.png, 1856x2304 pixels at 32 px a square
 ```
 
 The squares are drawn in the order `1038:d8f8` draws them — base square,
-forest, plowed, hills, mountains, river, roads, coastline — and a `.MP` draws
-terrain and coastline only, because its other two planes are not solved.
-[Map preview](map-preview.md) is the long version: which layer rests on
+terrain seams, forest, plowed, hills, mountains, river, roads, coastline — and
+a `.MP` draws terrain and coastline only, because its other two planes are not
+solved. [Map preview](map-preview.md) is the long version: which layer rests on
 what, and the four things the tool declines to draw.
 
 ---
