@@ -23,7 +23,7 @@ from colwin import mapview                                          # noqa: E402
 from colwin import png as pnglib                                    # noqa: E402
 from colwin.formats import mapfile                                  # noqa: E402
 from colwin.tileset import (BANDS, BASE_CELLS, CORNER_BACKGROUND,     # noqa: E402
-                            SEAM_PROFILE, SHORE_CELLS, SHORE_OPEN,
+                            MASK_CELLS, MASK_KEEP, SHORE_CELLS, SHORE_OPEN,
                             Tileset, band_cell, corner_cell, corner_offset)
 
 GAME = os.environ.get("COLWIN_GAME")
@@ -151,18 +151,18 @@ class Seams(unittest.TestCase):
 
     def test_a_different_group_seams_on_that_side_showing_the_neighbour(self):
         p = self.plane([[4, 1, 4], [4, 4, 4], [4, 4, 4]])
-        self.assertEqual(mapview.seams(p, 1, 1), [("n", 1)])
+        self.assertEqual(mapview.seams(p, 1, 1), [(0, 1)])
         p = self.plane([[4, 4, 4], [4, 4, 2], [4, 6, 4]])
-        self.assertEqual(sorted(mapview.seams(p, 1, 1)), [("e", 2), ("s", 6)])
+        self.assertEqual(sorted(mapview.seams(p, 1, 1)), [(1, 2), (2, 6)])
 
     def test_a_forest_seams_as_its_group_not_its_id(self):
         # 13 is tropical forest: group 5, savannah. Against grassland, group 4.
         p = self.plane([[4, 13, 4], [4, 4, 4], [4, 4, 4]])
-        self.assertEqual(mapview.seams(p, 1, 1), [("n", 5)])
+        self.assertEqual(mapview.seams(p, 1, 1), [(0, 5)])
 
     def test_arctic_seams_as_itself(self):
         p = self.plane([[4, 24, 4], [4, 4, 4], [4, 4, 4]])
-        self.assertEqual(mapview.seams(p, 1, 1), [("n", mapview.ARCTIC)])
+        self.assertEqual(mapview.seams(p, 1, 1), [(0, mapview.ARCTIC)])
 
     def test_land_beside_open_water_gets_no_seam(self):
         """cell_draw_terrain answers 0x19 or -1, and the branch takes neither."""
@@ -171,47 +171,64 @@ class Seams(unittest.TestCase):
 
     def test_the_two_waters_seam_against_each_other_both_ways(self):
         p = self.plane([[25, 26, 25], [25, 25, 25], [25, 25, 25]])
-        self.assertEqual(mapview.seams(p, 1, 1), [("n", mapview.SEA_LANE)])
+        self.assertEqual(mapview.seams(p, 1, 1), [(0, mapview.SEA_LANE)])
         p = self.plane([[26, 25, 26], [26, 26, 26], [26, 26, 26]])
-        self.assertEqual(mapview.seams(p, 1, 1), [("n", mapview.OCEAN)])
+        self.assertEqual(mapview.seams(p, 1, 1), [(0, mapview.OCEAN)])
 
 
 class SeamArt(unittest.TestCase):
-    def test_the_profile_tapers_at_both_ends(self):
-        self.assertEqual(len(SEAM_PROFILE), 32)
-        self.assertLess(SEAM_PROFILE[0], max(SEAM_PROFILE) / 2)
-        self.assertLess(SEAM_PROFILE[-1], max(SEAM_PROFILE) / 2)
+    """The seam masks, which are the game's own sprites (icons 0x69..0x6c)."""
+
+    def test_each_mask_keeps_sixty_four_pixels_along_its_own_edge(self):
+        """Eight pixels deep, about six percent of the square, one edge each.
+
+        `load_all_sprite_sheets` cuts these four cells keying out colour 0x87 --
+        canvas index 95, black, since the canvas is installed at palette 40 --
+        so the black pixels are what the seam keeps. Sixty-four of 1,024, in a
+        speckle along one edge, is what makes a terrain boundary in this game a
+        scatter rather than a band.
+        """
+        tiles = tileset(game_or_skip(self))
+        depth = 8
+        for d, (mx, my, w, h) in sorted(MASK_CELLS.items()):
+            kept = [(x, y) for y in range(h) for x in range(w)
+                    if tiles.pixels[(my + y) * tiles.width + mx + x] == MASK_KEEP]
+            self.assertEqual(len(kept), 64, "mask %d keeps %d" % (d, len(kept)))
+            near = {0: lambda x, y: y < depth, 1: lambda x, y: x >= w - depth,
+                    2: lambda x, y: y >= h - depth, 3: lambda x, y: x < depth}[d]
+            outside = [p for p in kept if not near(*p)]
+            self.assertEqual(outside, [],
+                             "mask %d keeps %d pixels off its edge"
+                             % (d, len(outside)))
+
+    def test_no_row_of_a_seam_is_solid(self):
+        """A speckle, not a band: both sides of a boundary draw one."""
+        tiles = tileset(game_or_skip(self))
+        w, h, _rgb, keep = tiles.seam(BASE_CELLS[1], 0)
+        rows = [sum(keep[y * w + x] for x in range(w)) for y in range(h)]
+        self.assertLess(max(rows), w * 0.6, "a row is nearly solid: %r" % rows[:8])
+        self.assertEqual(sum(rows[8:]), 0, "the seam reaches past 8 pixels")
+        self.assertGreater(sum(rows), 40, "the seam is barely there: %d" % sum(rows))
 
     def test_a_seam_paints_its_own_edge_and_not_the_far_one(self):
         tiles = tileset(game_or_skip(self))
         box = BASE_CELLS[1]
-        for side, near, far in (("n", 0, 31), ("s", 31, 0),
-                                ("w", 0, 31), ("e", 31, 0)):
-            w, h, _rgb, opaque = tiles.seam(box, side)
-            if side in ("n", "s"):
-                on = sum(opaque[near * w + x] for x in range(w))
-                off = sum(opaque[far * w + x] for x in range(w))
+        for d, near, far in ((0, 0, 31), (2, 31, 0), (3, 0, 31), (1, 31, 0)):
+            w, h, _rgb, keep = tiles.seam(box, d)
+            if d in (0, 2):
+                on = sum(keep[near * w + x] for x in range(w))
+                off = sum(keep[far * w + x] for x in range(w))
             else:
-                on = sum(opaque[y * w + near] for y in range(h))
-                off = sum(opaque[y * w + far] for y in range(h))
-            self.assertGreater(on, w / 2, "%s seam misses its edge" % side)
-            self.assertEqual(off, 0, "%s seam reaches the far edge" % side)
-
-    def test_the_band_is_shallow_and_mostly_dither(self):
-        """Both squares of a boundary draw one, so a deep solid band stripes."""
-        tiles = tileset(game_or_skip(self))
-        w, h, _rgb, opaque = tiles.seam(BASE_CELLS[1], "n")
-        rows = [sum(opaque[y * w + x] for x in range(w)) for y in range(h)]
-        self.assertLess(sum(1 for r in rows if r > w * 0.9), 3,
-                        "more than two solid rows: %r" % rows[:12])
-        self.assertEqual(sum(rows[12:]), 0, "the band reaches past 12 pixels")
-        self.assertGreater(sum(rows), w, "the band is not there at all")
+                on = sum(keep[y * w + near] for y in range(h))
+                off = sum(keep[y * w + far] for y in range(h))
+            self.assertGreater(on, 0, "mask %d misses its edge" % d)
+            self.assertEqual(off, 0, "mask %d reaches the far edge" % d)
 
     def test_a_seam_is_a_subset_of_the_square_it_is_cut_from(self):
         tiles = tileset(game_or_skip(self))
         box = BASE_CELLS[3]
         _w, _h, rgb, full = tiles.cell(box)
-        _w, _h, seam_rgb, part = tiles.seam(box, "n")
+        _w, _h, seam_rgb, part = tiles.seam(box, 0)
         self.assertEqual(rgb, seam_rgb)             # same pixels, fewer shown
         self.assertLess(sum(part), sum(full))
         for i, v in enumerate(part):

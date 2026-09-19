@@ -32,12 +32,12 @@ plane 1 is uniformly zero in the only shipped file and its plane 2 is
 
 The seams are the layer that makes terrain meet terrain instead of butting up
 against it: `draw_tile_with_overlays` takes a four-byte list beside the base
-square and draws up to four overlay sprites from it, and
-`build_terrain_seams_1008_7ec9` is what fills that list. `seams()` below carries
-the rule. The *art* for them is the one thing here the game's own bytes do not
-supply -- see `Tileset.seam`.
+square and draws up to four overlay sprites from it,
+`build_terrain_seams_1008_7ec9` fills that list -- `seams()` below carries its
+rule -- and `load_all_sprite_sheets` builds the 44 sprites themselves out of a
+terrain square and a mask, which `Tileset.seam` reproduces.
 
-## Four things this does not draw
+## Three things this does not draw
 
 **Scenery and prime resources.** `tile_decoration_1038_c066` hashes the
 square's position against `g_scenery_seed` (DGROUP `0x1ca6`), and that seed is
@@ -55,8 +55,8 @@ says which.
 from . import png
 from .formats import mapfile
 from .tileset import (Tileset, TILE, BASE_CELLS, COLONY_CELL, CORNER_BACKGROUND,
-                      PLOWED_CELL, SHORE_CELLS, VILLAGE_CELLS, band_cell,
-                      corner_cell, corner_offset)
+                      CORNER_WATER, PLOWED_CELL, SHORE_CELLS, VILLAGE_CELLS,
+                      band_cell, corner_cell, corner_offset)
 
 # terrain.h, from the game's own TERRAIN0..TERRAIN28 resources.
 TERRAIN_MASK = 0x1f
@@ -72,8 +72,11 @@ EUROPEAN_COUNT = 4
 RING = ((0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1))
 # N 8, S 4, W 2, E 1, in the order every mask helper tests them.
 ORTHO = ((0, -1, 8), (0, 1, 4), (-1, 0, 2), (1, 0, 1))
-# The same four neighbours, named by the edge of this square they touch.
-SEAM_SIDES = ((0, -1, "n"), (0, 1, "s"), (-1, 0, "w"), (1, 0, "e"))
+# The four orthogonal neighbours in the order `g_ortho_dx`/`g_ortho_dy` hold
+# them, which the seam masks settle: mask 0 speckles the north edge, mask 1 the
+# east, mask 2 the south, mask 3 the west. `d` below is that index, the same
+# one the seam byte carries.
+SEAM_SIDES = ((0, -1, 0), (1, 0, 1), (0, 1, 2), (-1, 0, 3))
 # The four whole-edge shore squares, as (pattern, mask) on the ring bits:
 # land at N,W,NW / N,NE,E / S,SW,W / E,SE,S -> icons 0x97..0x9a.
 SHORE_PATTERNS = ((0xc1, 0xdd), (0x07, 0x77), (0x70, 0x77), (0x1c, 0xdd))
@@ -152,7 +155,7 @@ def scan_neighbours(p0, x, y):
 
 
 def seams(p0, x, y):
-    """Which terrain seams this square carries, as (side, terrain id) pairs.
+    """Which terrain seams this square carries, as (mask, terrain id) pairs.
 
     `build_terrain_seams_1008_7ec9` precomputes one byte per square per
     orthogonal direction -- `0xff` for none -- and `draw_tile_with_overlays`
@@ -174,21 +177,21 @@ def seams(p0, x, y):
     """
     base = p0.at(x, y) & TERRAIN_MASK
     out = []
-    for dx, dy, side in SEAM_SIDES:
+    for dx, dy, d in SEAM_SIDES:
         nb = p0.at(x + dx, y + dy) & TERRAIN_MASK
         if nb == base:
             continue
         if nb < ARCTIC:
             if nb % 8 != base % 8:
-                out.append((side, nb % 8))
+                out.append((d, nb % 8))
         elif nb == ARCTIC:
-            out.append((side, ARCTIC))
+            out.append((d, ARCTIC))
         elif nb == OCEAN:
             if base == SEA_LANE:
-                out.append((side, OCEAN))
+                out.append((d, OCEAN))
         elif nb == SEA_LANE:
             if base == OCEAN:
-                out.append((side, SEA_LANE))
+                out.append((d, SEA_LANE))
     return out
 
 
@@ -288,8 +291,8 @@ def _seams(canvas, tiles, p0, x, y, px, py, plain):
     """The four overlay slots of `draw_tile_with_overlays`, in the same place."""
     if plain:
         return
-    for side, terrain in seams(p0, x, y):
-        canvas.blit(tiles.seam(BASE_CELLS[terrain], side), px, py)
+    for d, terrain in seams(p0, x, y):
+        canvas.blit(tiles.seam(BASE_CELLS[terrain], d), px, py)
 
 
 def _square(canvas, tiles, p0, p1, x, y, px, py, plain):
@@ -342,6 +345,8 @@ def _square(canvas, tiles, p0, p1, x, y, px, py, plain):
         else:
             for j in range(4):
                 dx, dy = corner_offset(j)
+                # Open water under the piece, as the builder composites it.
+                canvas.blit(tiles.cell(CORNER_WATER), px + dx, py + dy)
                 canvas.blit(tiles.cell(corner_cell(corners[j], j), CORNER_BACKGROUND),
                             px + dx, py + dy)
 

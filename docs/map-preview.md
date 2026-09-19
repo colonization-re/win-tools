@@ -21,7 +21,7 @@ wrote map.png, 1856x2304 pixels at 32 px a square
 | `game` | an installed copy — the art comes out of its `COLDATA1.DLL` |
 | `--out` | the PNG to write |
 | `--tile=PX` | pixels a square, 1 to 32. The default is 32, the size the game draws |
-| `--plain` | draw only what the game's own art supplies: no terrain seams, no plowed squares, no settlements |
+| `--plain` | leave out the seams, the plowed squares and the settlements |
 
 At the default size the shipped 58 × 72 map is a 1856 × 2304 image. `--tile=8`
 gives the same map as 464 × 576, which is the size to use for a thumbnail or a
@@ -127,27 +127,6 @@ next to the running game is not a bug in this tool.
 
 **Units.** Plane 1 bit `0x01` says a square holds one. Nothing in the planes
 says which, and the tool does not guess.
-
-**The seam sprites.** The game holds 44 of them — eight land groups, the
-arctic edge and the two water boundaries, four directions each — in a table of
-its own, `g_overlay_sprites`. They are the one piece of map art this tool could
-not find: masking out every cell already accounted for leaves no block of 44 on
-the sheet, none of the 96 canvases the game ships is a seam sheet, and only 19
-of its 915 sprites are 32 × 32 at all. So the seam is drawn by taking the
-neighbouring terrain's **own square** and masking it to a ragged, dithered band
-along the shared edge. Every colour on the map is still the game's; the shape
-of that band is not, and `--plain` leaves the layer out.
-
-The band is one or two pixels of solid terrain and then about seven of
-thinning speckle, with gaps along it — shallow on purpose. **Both** squares of a
-boundary draw a seam, each showing the other's terrain, so a deep solid band
-reads as a stripe of the neighbour laid over the square, and two of them as a
-pair of stripes. Kept shallow and mostly dithered, the two interleave into one
-soft edge across the tile boundary, and `tests/test_map.py` fails if the band
-ever goes solid or deep again. Which pixels of the fringe survive is decided by
-a hash on 2 × 2 blocks rather than by an ordered dither: a 4 × 4 dither at half
-density is a checkerboard, and between sand and grass the eye reads the
-pattern instead of the edge.
 
 **Colours and pictures for nations.** The settlement art and the four European
 colours are a **presentation choice**, marked `inferred` in

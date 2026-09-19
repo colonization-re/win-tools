@@ -87,6 +87,11 @@ BASE_CELLS.update({24: (321, 39, TILE, TILE), 25: (321, 72, TILE, TILE),
 
 CORNER_X0, CORNER_PITCH, CORNER_INNER = 7, 36, 17
 CORNER_Y = (438, 455)
+# A coastline corner is a composite too: the builder draws a 16x16 square of
+# open water and the coast piece over it, then extracts. The water quarter is
+# the last of a 2x2 block at (547, 434); the builder's inner loop overwrites its
+# result four times, so the fourth -- this one -- is the one that survives.
+CORNER_WATER = (547, 451, HALF, HALF)
 
 # The four whole-edge shore squares, icons 0x97..0x9a. They sit as a 2x2 block
 # that reads as one lake, which is why they were taken for a picture at first,
@@ -104,43 +109,34 @@ SHORE_CELLS = {0: (555, 298, TILE, TILE), 1: (588, 298, TILE, TILE),
 # The land directions of each pattern, as the test reads them: (open edges).
 SHORE_OPEN = {0: ("s", "e"), 1: ("s", "w"), 2: ("n", "e"), 3: ("n", "w")}
 
-# How deep the terrain seam reaches into the square, pixel by pixel along the
-# edge, and how many rows of thinning dither follow it. The numbers are a
-# drawing, not a measurement: the game's own 44 seam sprites are not among the
-# bytes it ships (see Tileset.seam), so this is chosen to look like what the
-# game draws rather than derived from it. One profile serves all four edges.
+# THE SEAM MASKS, and with them the seams themselves.
 #
-# BOTH squares of a boundary draw one, each showing the other's terrain, so the
-# two bands meet across the tile edge. That is why the solid part is one or two
-# pixels and the rest is dither: a deep solid band would read as a stripe of the
-# neighbour laid over this square, and two of them as a border. Shallow and
-# mostly dithered, they interleave into a single soft edge, which is what the
-# game's boundaries look like.
-# It also runs to zero here and there, and tapers at both ends, so that the four
-# seams of a square never close into a rectangle around it.
-SEAM_PROFILE = (0, 0, 1, 2, 1, 0, 2, 3, 2, 1, 0, 1, 2, 3, 2, 1,
-                0, 1, 2, 1, 3, 2, 1, 0, 1, 2, 2, 1, 0, 1, 0, 0)
-SEAM_FRINGE = 7
-# How much of the fringe survives, row by row, out of 16: falling from half the
-# pixels to almost none. Which pixels is decided by a hash rather than by an
-# ordered dither -- a 4x4 dither at 50% is a checkerboard, and against a high
-# contrast pair like sand and grass the eye reads the pattern, not the edge.
-SEAM_DITHER = (8, 6, 5, 4, 3, 2, 1)
-# The hash is taken on 2x2 blocks, so the speckle is chunky like the art it sits
-# in rather than single pixels, and it takes the side so that the four seams of
-# one square never repeat each other.
-SEAM_CLUMP = 2
-SEAM_PHASE = {"n": 0, "e": 1, "s": 2, "w": 3}
+# `load_all_sprite_sheets` (1008:51d4) builds the game's whole art table at
+# start-up out of this canvas, and the 44 seam sprites are BUILT, not drawn:
+#
+#     for group in 0..7:  for d in 0..3:
+#         draw tile[group] into a 32x32 port
+#         draw mask[d]     over it
+#         extract the result, keying out colour 0x31
+#     then the same four for arctic, ocean and sea lane
+#
+# and mask[d] is icon 0x69+d, cut from this sheet at (553, 24 + 33d) keying out
+# colour 0x87. Those two keys are runtime palette indices, and the loader
+# installs this canvas at 40 (`load_picture_resource(..., 0x28, 0x60, ...)`), so
+# 0x87 is canvas index 95 -- black -- and 0x31 is canvas index 9, the grey
+# ground. Net: the seam keeps the terrain wherever the mask cell is BLACK and
+# drops it everywhere else.
+#
+# The masks are a sparse speckle eight pixels deep along one edge -- exactly 64
+# of 1,024 pixels each, about six percent -- which is why a terrain boundary in
+# this game is a fine scatter and not a band.
+MASK_CELLS = {0: (553, 24, TILE, TILE), 1: (553, 57, TILE, TILE),
+              2: (553, 90, TILE, TILE), 3: (553, 123, TILE, TILE)}
+MASK_KEEP = 95              # canvas black: what the mask lets through
+MASK_SIDES = ("n", "e", "s", "w")   # d = 0..3, read off the four masks
 
-
-def _speckle(x, y, side):
-    """A stable 0..15 per 2x2 block: the seam's dither, without a lattice."""
-    h = (x // SEAM_CLUMP) * 73856093 ^ (y // SEAM_CLUMP) * 19349663 ^ side * 83492791
-    h = (h ^ (h >> 13)) & 0x7fffffff
-    return (h >> 7) & 15
-
-# Inferred, not established -- see the module docstring.
-PLOWED_CELL = (337, 397, TILE, TILE)
+# From the builder as well: icon 0x96 is (304, 397), the first furrow cell.
+PLOWED_CELL = (304, 397, TILE, TILE)     # icon 0x96, from the builder
 COLONY_CELL = (663, 203, TILE, TILE)
 VILLAGE_CELLS = {"tipi": (659, 310, TILE, TILE), "hut": (692, 310, TILE, TILE),
                  "pyramid": (725, 310, TILE, TILE), "stone": (758, 310, TILE, TILE)}
@@ -252,50 +248,25 @@ class Tileset:
         self._cells[key] = out
         return out
 
-    def seam(self, box, side):
-        """A terrain seam: the square `box`, kept only along one edge.
+    def seam(self, box, d):
+        """A terrain seam: the square `box` seen through mask `d`.
 
-        The game draws seams from a table of its own, `g_overlay_sprites`, and
-        **this is not that art**: no block of 44 seam cells is on the sheet, and
-        no canvas the game ships is one. What is reproduced is the *shape* of
-        the layer -- a ragged, dithered band of the neighbouring terrain lying
-        over this square's edge -- cut from that terrain's own square, so every
-        colour on the map is still the game's. See `SEAM_PROFILE`.
+        This is what the game builds at start-up, with the same two sprites and
+        the same key colours -- see MASK_CELLS. The mask keeps about six percent
+        of the square, in a speckle eight pixels deep along one edge, and that
+        speckle is the game's own art, not a pattern invented here.
         """
-        key = (box, side, "seam")
+        key = (box, d, "seam")
         if key in self._cells:
             return self._cells[key]
         w, h, rgb, opaque = self.cell(box)
+        mx, my, _mw, _mh = MASK_CELLS[d]
         keep = bytearray(w * h)
-        # Each side reads the profile and the dither from its own phase, so the
-        # four seams of one square do not line up into a frame.
-        phase = SEAM_PHASE[side]
-        for i in range(w):
-            depth = SEAM_PROFILE[(i + phase * 7) % len(SEAM_PROFILE)]
-            # Where the profile is zero the fringe is cut short too, which puts
-            # real gaps in the band: without them a square surrounded by one
-            # other terrain gets a faint dotted frame instead of an edge.
-            fringe = SEAM_FRINGE if depth else SEAM_FRINGE // 3
-            for j in range(depth + fringe):
-                if j >= depth:
-                    # The fringe thins with depth: a 4x4 ordered dither, its
-                    # threshold falling row by row through SEAM_DITHER.
-                    thr = SEAM_DITHER[min(j - depth, len(SEAM_DITHER) - 1)]
-                    if _speckle(i, j, phase) >= thr:
-                        continue
-                if side == "n":
-                    x, y = i, j
-                elif side == "s":
-                    x, y = i, h - 1 - j
-                elif side == "w":
-                    x, y = j, i
-                else:
-                    x, y = w - 1 - j, i
-                if 0 <= x < w and 0 <= y < h:
+        for y in range(h):
+            row = (my + y) * self.width + mx
+            for x in range(w):
+                if self.pixels[row + x] == MASK_KEEP and opaque[y * w + x]:
                     keep[y * w + x] = 1
-        masked = bytearray(w * h)
-        for i in range(w * h):
-            masked[i] = 1 if (keep[i] and opaque[i]) else 0
-        out = (w, h, rgb, bytes(masked))
+        out = (w, h, rgb, bytes(keep))
         self._cells[key] = out
         return out
