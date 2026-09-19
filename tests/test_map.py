@@ -22,8 +22,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from colwin import mapview                                          # noqa: E402
 from colwin import png as pnglib                                    # noqa: E402
 from colwin.formats import mapfile                                  # noqa: E402
-from colwin.tileset import (BANDS, BASE_CELLS, SEAM_PROFILE, Tileset,  # noqa: E402
-                            band_cell, corner_cell, corner_offset)
+from colwin.tileset import (BANDS, BASE_CELLS, CORNER_BACKGROUND,     # noqa: E402
+                            SEAM_PROFILE, SHORE_CELLS, SHORE_OPEN,
+                            Tileset, band_cell, corner_cell, corner_offset)
 
 GAME = os.environ.get("COLWIN_GAME")
 _tiles = {}
@@ -122,9 +123,9 @@ class Masks(unittest.TestCase):
     def test_a_lone_land_square_gives_every_corner_the_full_code(self):
         land, sea = 4, mapview.OCEAN
         p = self.plane([[sea] * 3, [sea, land, sea], [sea] * 3])
-        count, corners = mapview.scan_neighbours(p, 1, 1)
+        count, corners, _land = mapview.scan_neighbours(p, 1, 1)
         self.assertEqual(count, 0)              # the land square itself is centre
-        count, corners = mapview.scan_neighbours(p, 0, 0)
+        count, corners, _land = mapview.scan_neighbours(p, 0, 0)
         self.assertEqual(count, 1)              # the land square, diagonally
         self.assertEqual(corners, [0, 0, 2, 0])
 
@@ -270,6 +271,74 @@ class Art(unittest.TestCase):
             w, h, _rgb, opaque = tiles.cell(box)
             self.assertEqual((w, h), (32, 32), "%r" % (box,))
             self.assertTrue(any(opaque), "cell %r is empty" % (box,))
+
+    def test_each_shore_square_is_open_on_the_edges_its_pattern_names(self):
+        """0x97..0x9a are picked by four exact land patterns; the art agrees.
+
+        A shore square carries water across the two edges its pattern leaves
+        open and nothing across the two the land is on. That, in reading order,
+        is what identifies the 2x2 block as those four icons.
+        """
+        tiles = tileset(game_or_skip(self))
+        for sel, box in sorted(SHORE_CELLS.items()):
+            w, h, _rgb, opaque = tiles.cell(box)
+            cover = {"n": sum(opaque[x] for x in range(w)),
+                     "s": sum(opaque[(h - 1) * w + x] for x in range(w)),
+                     "w": sum(opaque[y * w] for y in range(h)),
+                     "e": sum(opaque[y * w + w - 1] for y in range(h))}
+            for side in ("n", "e", "s", "w"):
+                if side in SHORE_OPEN[sel]:
+                    self.assertGreater(cover[side], w * 0.8,
+                                       "shore %d should be open on %s: %r"
+                                       % (sel, side, cover))
+                else:
+                    self.assertLess(cover[side], w * 0.4,
+                                    "shore %d should be closed on %s: %r"
+                                    % (sel, side, cover))
+
+    def test_each_corner_piece_leans_the_way_its_code_calls_land(self):
+        """`g_4c6e[j] * 4 + j + 0x6d`, checked against the art.
+
+        The corner code's three bits say which of the two edges at that corner,
+        and the diagonal, are land. Each piece is a shore blob rather than a
+        clean band, so the test is where its painted pixels LEAN: toward the
+        sides the code calls land -- and code 0, which calls none, paints
+        nothing at all. Where both edges are land the shore wraps the corner
+        and sits centrally, so there only its size is asserted.
+        """
+        tiles = tileset(game_or_skip(self))
+        # For each position: the direction of the bit-4 edge, the bit-1 edge
+        # and the bit-2 diagonal, as (dx, dy) out of the corner.
+        lean = {0: ((0, -1), (-1, 0), (-1, -1)), 1: ((1, 0), (0, -1), (1, -1)),
+                2: ((0, 1), (1, 0), (1, 1)), 3: ((-1, 0), (0, 1), (-1, 1))}
+        for code in range(8):
+            for j in range(4):
+                w, h, _rgb, opaque = tiles.cell(corner_cell(code, j),
+                                                CORNER_BACKGROUND)
+                n = sum(opaque)
+                if code == 0:
+                    self.assertEqual(n, 0, "code 0 piece %d paints %d" % (j, n))
+                    continue
+                if code & 5 == 5:
+                    # Land on both edges: the shore wraps the corner, so the
+                    # blob is central and only its size says anything.
+                    self.assertGreater(n, w * h * 0.35,
+                                       "code %d piece %d paints only %d"
+                                       % (code, j, n))
+                    continue
+                cx = sum(i % w for i in range(w * h) if opaque[i]) / n - (w - 1) / 2.0
+                cy = sum(i // w for i in range(w * h) if opaque[i]) / n - (h - 1) / 2.0
+                vx = vy = 0
+                for bit, (dx, dy) in zip((4, 1, 2), lean[j]):
+                    if code & bit:
+                        vx += dx
+                        vy += dy
+                if vx == vy == 0:
+                    continue
+                self.assertGreater(cx * vx + cy * vy, 0,
+                                   "code %d piece %d leans (%.1f, %.1f), "
+                                   "the code says (%d, %d)"
+                                   % (code, j, cx, cy, vx, vy))
 
     def test_the_ocean_square_is_solid_and_the_forest_overlay_is_not(self):
         tiles = tileset(game_or_skip(self))

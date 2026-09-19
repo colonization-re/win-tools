@@ -55,8 +55,8 @@ says which.
 from . import png
 from .formats import mapfile
 from .tileset import (Tileset, TILE, BASE_CELLS, COLONY_CELL, CORNER_BACKGROUND,
-                      PLOWED_CELL, VILLAGE_CELLS, band_cell, corner_cell,
-                      corner_offset)
+                      PLOWED_CELL, SHORE_CELLS, VILLAGE_CELLS, band_cell,
+                      corner_cell, corner_offset)
 
 # terrain.h, from the game's own TERRAIN0..TERRAIN28 resources.
 TERRAIN_MASK = 0x1f
@@ -74,6 +74,9 @@ RING = ((0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1))
 ORTHO = ((0, -1, 8), (0, 1, 4), (-1, 0, 2), (1, 0, 1))
 # The same four neighbours, named by the edge of this square they touch.
 SEAM_SIDES = ((0, -1, "n"), (0, 1, "s"), (-1, 0, "w"), (1, 0, "e"))
+# The four whole-edge shore squares, as (pattern, mask) on the ring bits:
+# land at N,W,NW / N,NE,E / S,SW,W / E,SE,S -> icons 0x97..0x9a.
+SHORE_PATTERNS = ((0xc1, 0xdd), (0x07, 0x77), (0x70, 0x77), (0x1c, 0xdd))
 
 # Presentation, not a finding: no code binds a colour or a building to a
 # nation. The four European colours are the flags on the sheet; the villages
@@ -126,24 +129,26 @@ def neighbour_class(p0, x, y):
 
 
 def scan_neighbours(p0, x, y):
-    """(count, corner codes) for the eight squares around this one.
+    """(count, corner codes, land mask) for the eight squares around this one.
 
     Even directions are the orthogonals and set bit 2 of their own corner and
     bit 0 of the next; odd ones are the diagonals and set bit 1 of one corner.
     """
     corners = [0, 0, 0, 0]
     count = 0
+    bits = 0
     for i, (dx, dy) in enumerate(RING):
         if is_water(neighbour_class(p0, x + dx, y + dy)):
             continue
         count += 1
+        bits |= 1 << i
         if i & 1:
             corners[((i + 1) & 7) >> 1] |= 2
         else:
             j = i >> 1
             corners[j] |= 4
             corners[(j + 1) & 3] |= 1
-    return count, corners
+    return count, corners, bits
 
 
 def seams(p0, x, y):
@@ -185,6 +190,20 @@ def seams(p0, x, y):
             if base == OCEAN:
                 out.append((side, SEA_LANE))
     return out
+
+
+def shore_piece(land):
+    """Which whole-edge shore square, if any, the land around this water fits.
+
+    Four exact tests on the eight-direction land mask, in the order the draw
+    routine makes them; the last match wins, as it does there. A water square
+    whose land does not fit one of the four is drawn from the corner pieces.
+    """
+    shore = None
+    for sel, (pattern, mask) in enumerate(SHORE_PATTERNS):
+        if land & mask == pattern:
+            shore = sel
+    return shore
 
 
 def forest_mask(p0, x, y):
@@ -280,7 +299,7 @@ def _square(canvas, tiles, p0, p1, x, y, px, py, plain):
     water = is_water(cls)
     count = 0
     if water:
-        count, corners = scan_neighbours(p0, x, y)
+        count, corners, land = scan_neighbours(p0, x, y)
     if water and count == 0:
         canvas.blit(tiles.cell(BASE_CELLS[cls]), px, py)
         _seams(canvas, tiles, p0, x, y, px, py, plain)
@@ -317,10 +336,14 @@ def _square(canvas, tiles, p0, p1, x, y, px, py, plain):
                     canvas.blit(tiles.cell(band_cell("road", 1 + i)), px, py)
 
     if water:
-        for j in range(4):
-            dx, dy = corner_offset(j)
-            canvas.blit(tiles.cell(corner_cell(corners[j], j), CORNER_BACKGROUND),
-                        px + dx, py + dy)
+        shore = shore_piece(land)
+        if shore is not None:
+            canvas.blit(tiles.cell(SHORE_CELLS[shore]), px, py)
+        else:
+            for j in range(4):
+                dx, dy = corner_offset(j)
+                canvas.blit(tiles.cell(corner_cell(corners[j], j), CORNER_BACKGROUND),
+                            px + dx, py + dy)
 
 
 def _settlement(canvas, tiles, p1, p2, x, y, px, py):

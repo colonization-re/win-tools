@@ -46,12 +46,13 @@ top-right, bottom-right, bottom-left and `g_4c6e[j]` is a three-bit corner code
 from `neighbor_terrain_scan_1038_d520`. The sheet's eight 2x2 quads of 16x16
 coast cells are exactly `code * 4 + j`.
 
-**The settlements, the plowed square and the four whole-edge coast tiles are
-NOT established.** The draw function names icons `0x96` (plowed) and
-`0x97..0x9a` (whole-edge coast) but nothing binds an icon number to a cell
-outside the bands above, and no load site derives a settlement's art from a
-nation. Those cells are identified **by eye** and marked `inferred` in
-`CELL_EVIDENCE`; the renderer's `--plain` skips every one of them.
+**The four whole-edge shore squares are established too**, by the patterns that
+select them: see `SHORE_CELLS`.
+
+**The settlements and the plowed square are NOT.** The draw function names icon
+`0x96` for plowing, but nothing binds that number to a cell, and no load site
+derives a settlement's art from a nation. Those cells are identified **by eye**
+and marked `inferred` in `CELL_EVIDENCE`; the renderer's `--plain` skips them.
 """
 import os
 
@@ -87,6 +88,22 @@ BASE_CELLS.update({24: (321, 39, TILE, TILE), 25: (321, 72, TILE, TILE),
 CORNER_X0, CORNER_PITCH, CORNER_INNER = 7, 36, 17
 CORNER_Y = (438, 455)
 
+# The four whole-edge shore squares, icons 0x97..0x9a. They sit as a 2x2 block
+# that reads as one lake, which is why they were taken for a picture at first,
+# and they are identified by MEASUREMENT: the draw routine picks them by four
+# exact patterns of the eight-direction land mask --
+#
+#   0x97  land at N, W, NW      0x98  land at N, NE, E
+#   0x99  land at S, SW, W      0x9a  land at E, SE, S
+#
+# -- and each cell carries water across exactly the two edges its pattern says
+# are open, with the other two left as ground for the land to show through. All
+# four agree, in reading order. tests/test_map.py re-derives it from the pixels.
+SHORE_CELLS = {0: (555, 298, TILE, TILE), 1: (588, 298, TILE, TILE),
+               2: (555, 331, TILE, TILE), 3: (588, 331, TILE, TILE)}
+# The land directions of each pattern, as the test reads them: (open edges).
+SHORE_OPEN = {0: ("s", "e"), 1: ("s", "w"), 2: ("n", "e"), 3: ("n", "w")}
+
 # How deep the terrain seam reaches into the square, pixel by pixel along the
 # edge, and how many rows of thinning dither follow it. The numbers are a
 # drawing, not a measurement: the game's own 44 seam sprites are not among the
@@ -104,11 +121,23 @@ CORNER_Y = (438, 455)
 SEAM_PROFILE = (0, 0, 1, 2, 1, 0, 2, 3, 2, 1, 0, 1, 2, 3, 2, 1,
                 0, 1, 2, 1, 3, 2, 1, 0, 1, 2, 2, 1, 0, 1, 0, 0)
 SEAM_FRINGE = 7
-# How much of the fringe survives, row by row: a 4x4 ordered dither whose
-# threshold falls from half the pixels to almost none.
+# How much of the fringe survives, row by row, out of 16: falling from half the
+# pixels to almost none. Which pixels is decided by a hash rather than by an
+# ordered dither -- a 4x4 dither at 50% is a checkerboard, and against a high
+# contrast pair like sand and grass the eye reads the pattern, not the edge.
 SEAM_DITHER = (8, 6, 5, 4, 3, 2, 1)
-_ORDERED_4X4 = (0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5)
+# The hash is taken on 2x2 blocks, so the speckle is chunky like the art it sits
+# in rather than single pixels, and it takes the side so that the four seams of
+# one square never repeat each other.
+SEAM_CLUMP = 2
 SEAM_PHASE = {"n": 0, "e": 1, "s": 2, "w": 3}
+
+
+def _speckle(x, y, side):
+    """A stable 0..15 per 2x2 block: the seam's dither, without a lattice."""
+    h = (x // SEAM_CLUMP) * 73856093 ^ (y // SEAM_CLUMP) * 19349663 ^ side * 83492791
+    h = (h ^ (h >> 13)) & 0x7fffffff
+    return (h >> 7) & 15
 
 # Inferred, not established -- see the module docstring.
 PLOWED_CELL = (337, 397, TILE, TILE)
@@ -125,6 +154,7 @@ CELL_EVIDENCE = {
     "forest": "code: icon 0x41 + mask, and the art's edges agree",
     "road": "code: icon 0x51 isolated, else 0x52 + direction",
     "coast": "code: icon g_4c6e[j] * 4 + j + 0x6d, four 16x16 pieces",
+    "shore": "code: icons 0x97..0x9a, and each cell's open edges match its pattern",
     "plowed": "inferred: icon 0x96 has no established cell; identified by eye",
     "settlement": "inferred: no load site derives settlement art from a nation",
 }
@@ -251,7 +281,7 @@ class Tileset:
                     # The fringe thins with depth: a 4x4 ordered dither, its
                     # threshold falling row by row through SEAM_DITHER.
                     thr = SEAM_DITHER[min(j - depth, len(SEAM_DITHER) - 1)]
-                    if _ORDERED_4X4[(j % 4) * 4 + (i + phase) % 4] >= thr:
+                    if _speckle(i, j, phase) >= thr:
                         continue
                 if side == "n":
                     x, y = i, j

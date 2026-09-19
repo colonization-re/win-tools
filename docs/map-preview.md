@@ -94,7 +94,28 @@ re-derives it from the canvas on every run.
 The eight 2 × 2 quads of 16 × 16 coast cells are the same story: the draw
 function asks for `g_4c6e[j] * 4 + j + 0x6d`, where the corner code is three
 bits and `j` runs top-left, top-right, bottom-right, bottom-left — thirty-two
-pieces, and the sheet has exactly thirty-two.
+pieces, and the sheet has exactly thirty-two. Each piece's three bits say which
+of the two edges at that corner, and the diagonal, are land, and **each piece's
+art leans that way**: measured on all thirty-two, with code 0 painting nothing
+at all and the codes with both edges wrapping the corner.
+
+### The four whole-edge shore squares, found by their own patterns
+
+A water square whose land matches one of four exact patterns is drawn as a
+single square instead, icons `0x97`–`0x9a`:
+
+| icon | land at | the cell |
+| --- | --- | --- |
+| `0x97` | N, W, NW | top-left of the block at (555, 298) |
+| `0x98` | N, NE, E | top-right |
+| `0x99` | S, SW, W | bottom-left |
+| `0x9a` | E, SE, S | bottom-right |
+
+Those four cells sit as a 2 × 2 block that reads as a lake, which is why they
+were first taken for a picture of one. They are not: **each carries water
+across exactly the two edges its pattern leaves open**, and nothing across the
+two the land is on — all four, in reading order. On the shipped map they draw
+98 of the 517 coastal squares; the corner pieces draw the other 419.
 
 ## What it does not draw, and why
 
@@ -103,12 +124,6 @@ hashing the square's position against a seed at DGROUP `0x1ca6`, and that seed
 is **not one of the 57 fields the save routine writes**. Nothing in the file
 determines them, so nothing is drawn. A save that looks bare of beaver and fish
 next to the running game is not a bug in this tool.
-
-**The four whole-edge coast tiles** (`0x97`–`0x9a`). The draw function prefers
-them when the land around a water square matches one of four patterns exactly.
-No cell on the sheet is bound to those icon numbers, so this always takes the
-general path — the four corner pieces, which the same function uses for every
-other pattern.
 
 **Units.** Plane 1 bit `0x01` says a square holds one. Nothing in the planes
 says which, and the tool does not guess.
@@ -124,12 +139,15 @@ along the shared edge. Every colour on the map is still the game's; the shape
 of that band is not, and `--plain` leaves the layer out.
 
 The band is one or two pixels of solid terrain and then about seven of
-thinning dither, with gaps along it — shallow on purpose. **Both** squares of a
+thinning speckle, with gaps along it — shallow on purpose. **Both** squares of a
 boundary draw a seam, each showing the other's terrain, so a deep solid band
 reads as a stripe of the neighbour laid over the square, and two of them as a
 pair of stripes. Kept shallow and mostly dithered, the two interleave into one
 soft edge across the tile boundary, and `tests/test_map.py` fails if the band
-ever goes solid or deep again.
+ever goes solid or deep again. Which pixels of the fringe survive is decided by
+a hash on 2 × 2 blocks rather than by an ordered dither: a 4 × 4 dither at half
+density is a checkerboard, and between sand and grass the eye reads the
+pattern instead of the edge.
 
 **Colours and pictures for nations.** The settlement art and the four European
 colours are a **presentation choice**, marked `inferred` in
