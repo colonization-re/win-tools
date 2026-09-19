@@ -93,16 +93,22 @@ CORNER_Y = (438, 455)
 # bytes it ships (see Tileset.seam), so this is chosen to look like what the
 # game draws rather than derived from it. One profile serves all four edges.
 #
-# It tapers to nothing at both ends, which is what keeps two seams meeting at a
-# corner from stacking into a square blob, and it is deliberately uneven so the
-# boundary reads as terrain rather than as a border.
-SEAM_PROFILE = (1, 2, 4, 5, 7, 6, 9, 11, 9, 7, 8, 10, 12, 10, 8, 7,
-                9, 11, 13, 11, 9, 8, 10, 12, 10, 8, 6, 7, 5, 4, 2, 1)
-SEAM_FRINGE = 5
-# Which pixel of the dithered fringe survives, row by row: the further in, the
-# sparser. Read as a 4x4 threshold, thinning from every other pixel to none.
-SEAM_DITHER = (2, 3, 5, 8, 12)
+# BOTH squares of a boundary draw one, each showing the other's terrain, so the
+# two bands meet across the tile edge. That is why the solid part is one or two
+# pixels and the rest is dither: a deep solid band would read as a stripe of the
+# neighbour laid over this square, and two of them as a border. Shallow and
+# mostly dithered, they interleave into a single soft edge, which is what the
+# game's boundaries look like.
+# It also runs to zero here and there, and tapers at both ends, so that the four
+# seams of a square never close into a rectangle around it.
+SEAM_PROFILE = (0, 0, 1, 2, 1, 0, 2, 3, 2, 1, 0, 1, 2, 3, 2, 1,
+                0, 1, 2, 1, 3, 2, 1, 0, 1, 2, 2, 1, 0, 1, 0, 0)
+SEAM_FRINGE = 7
+# How much of the fringe survives, row by row: a 4x4 ordered dither whose
+# threshold falls from half the pixels to almost none.
+SEAM_DITHER = (8, 6, 5, 4, 3, 2, 1)
 _ORDERED_4X4 = (0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5)
+SEAM_PHASE = {"n": 0, "e": 1, "s": 2, "w": 3}
 
 # Inferred, not established -- see the module docstring.
 PLOWED_CELL = (337, 397, TILE, TILE)
@@ -231,14 +237,21 @@ class Tileset:
             return self._cells[key]
         w, h, rgb, opaque = self.cell(box)
         keep = bytearray(w * h)
+        # Each side reads the profile and the dither from its own phase, so the
+        # four seams of one square do not line up into a frame.
+        phase = SEAM_PHASE[side]
         for i in range(w):
-            depth = SEAM_PROFILE[i % len(SEAM_PROFILE)]
-            for j in range(depth + SEAM_FRINGE):
+            depth = SEAM_PROFILE[(i + phase * 7) % len(SEAM_PROFILE)]
+            # Where the profile is zero the fringe is cut short too, which puts
+            # real gaps in the band: without them a square surrounded by one
+            # other terrain gets a faint dotted frame instead of an edge.
+            fringe = SEAM_FRINGE if depth else SEAM_FRINGE // 3
+            for j in range(depth + fringe):
                 if j >= depth:
                     # The fringe thins with depth: a 4x4 ordered dither, its
                     # threshold falling row by row through SEAM_DITHER.
                     thr = SEAM_DITHER[min(j - depth, len(SEAM_DITHER) - 1)]
-                    if _ORDERED_4X4[(j % 4) * 4 + i % 4] >= thr:
+                    if _ORDERED_4X4[(j % 4) * 4 + (i + phase) % 4] >= thr:
                         continue
                 if side == "n":
                     x, y = i, j

@@ -123,6 +123,14 @@ neighbouring terrain's **own square** and masking it to a ragged, dithered band
 along the shared edge. Every colour on the map is still the game's; the shape
 of that band is not, and `--plain` leaves the layer out.
 
+The band is one or two pixels of solid terrain and then about seven of
+thinning dither, with gaps along it — shallow on purpose. **Both** squares of a
+boundary draw a seam, each showing the other's terrain, so a deep solid band
+reads as a stripe of the neighbour laid over the square, and two of them as a
+pair of stripes. Kept shallow and mostly dithered, the two interleave into one
+soft edge across the tile boundary, and `tests/test_map.py` fails if the band
+ever goes solid or deep again.
+
 **Colours and pictures for nations.** The settlement art and the four European
 colours are a **presentation choice**, marked `inferred` in
 `colwin/tileset.py`: no load site derives a settlement's picture from a nation,

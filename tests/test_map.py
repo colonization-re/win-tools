@@ -196,6 +196,16 @@ class SeamArt(unittest.TestCase):
             self.assertGreater(on, w / 2, "%s seam misses its edge" % side)
             self.assertEqual(off, 0, "%s seam reaches the far edge" % side)
 
+    def test_the_band_is_shallow_and_mostly_dither(self):
+        """Both squares of a boundary draw one, so a deep solid band stripes."""
+        tiles = tileset(game_or_skip(self))
+        w, h, _rgb, opaque = tiles.seam(BASE_CELLS[1], "n")
+        rows = [sum(opaque[y * w + x] for x in range(w)) for y in range(h)]
+        self.assertLess(sum(1 for r in rows if r > w * 0.9), 3,
+                        "more than two solid rows: %r" % rows[:12])
+        self.assertEqual(sum(rows[12:]), 0, "the band reaches past 12 pixels")
+        self.assertGreater(sum(rows), w, "the band is not there at all")
+
     def test_a_seam_is_a_subset_of_the_square_it_is_cut_from(self):
         tiles = tileset(game_or_skip(self))
         box = BASE_CELLS[3]
