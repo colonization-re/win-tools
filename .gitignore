@@ -8,3 +8,6 @@ __pycache__/
 .DS_Store
 /_site
 /dist
+
+# Downloaded by tools/fetch_webui.py, pinned by docs/_config.yml.
+/docs/assets/col.css

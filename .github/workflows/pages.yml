@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "docs/**"
+      - "tools/fetch_webui.py"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -25,6 +26,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      # The shared stylesheet is a release asset of colonization-re/web-ui, not
+      # a file in this repository: `docs/_config.yml` pins the version and this
+      # fetches it. If it fails, the build fails here rather than deploying a
+      # site with no stylesheet.
+      - name: Fetch the pinned web-ui stylesheet
+        run: python3 tools/fetch_webui.py
       # The site is `docs/_layouts/default.html` over `docs/assets/col.css`; the
       # only plugins `docs/_config.yml` names come with the github-pages gem
       # set this action builds against, so it renders exactly as the
