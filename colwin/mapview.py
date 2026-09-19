@@ -154,6 +154,33 @@ def scan_neighbours(p0, x, y):
     return count, corners, bits
 
 
+def coast_land_group(p0, x, y):
+    """What a water square's coastline says the land behind it is, or None.
+
+    `cell_draw_terrain_1008_7e2d` asks `coast_neighbours_1008_7cb5` this, and
+    that routine walks the eight neighbours keeping the terrain of the last
+    ORTHOGONAL land one -- so west wins over south, south over east, east over
+    north -- folded to three bits below 0x18. With no land at all around it the
+    square answers -1 and nothing is drawn.
+
+    One faithful gap: when a water square has land only on its diagonals, the
+    routine leaves the remembered terrain at whatever the previous call put
+    there, and the answer is that stale value. This returns None instead of
+    reproducing a global left over from the last square drawn.
+    """
+    land = None
+    any_land = False
+    for i, (dx, dy) in enumerate(RING):
+        t = p0.at(x + dx, y + dy) & TERRAIN_MASK
+        t = t & 7 if t < 0x18 else t
+        if is_water(t):
+            continue
+        any_land = True
+        if not i & 1:
+            land = t
+    return land if any_land else None
+
+
 def seams(p0, x, y):
     """Which terrain seams this square carries, as (mask, terrain id) pairs.
 
@@ -170,10 +197,11 @@ def seams(p0, x, y):
         this square is 0x19,
         neighbour is 0x1a      direction + 0x24
 
-    A land square beside shallow water gets **no** seam: the routine asks
-    `cell_draw_terrain_1008_7e2d` what the water draws as, and that answers
-    `0x19` for coastal water and -1 for open sea, neither of which the branch
-    accepts. The coastline corner pieces are what draw that boundary instead.
+    The water rows are the subtle ones. A land square beside open water asks
+    `cell_draw_terrain_1008_7e2d` what that water draws as, and the answer is
+    the group of the land the water's own coastline touches -- see
+    `coast_land_group`. So a shore seams with whatever is across the water from
+    it, and not at all when that is its own group, which is the common case.
     """
     base = p0.at(x, y) & TERRAIN_MASK
     out = []
@@ -187,7 +215,18 @@ def seams(p0, x, y):
         elif nb == ARCTIC:
             out.append((d, ARCTIC))
         elif nb == OCEAN:
-            if base == SEA_LANE:
+            if base < OCEAN:
+                # The beach belongs to the land the water touches, not to the
+                # sea: the land square asks the water what is behind it.
+                t = coast_land_group(p0, x + dx, y + dy)
+                if t is None:
+                    pass
+                elif t < ARCTIC:
+                    if t % 8 != base % 8:
+                        out.append((d, t % 8))
+                elif t == ARCTIC:
+                    out.append((d, ARCTIC))
+            elif base == SEA_LANE:
                 out.append((d, OCEAN))
         elif nb == SEA_LANE:
             if base == OCEAN:

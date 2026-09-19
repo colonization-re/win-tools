@@ -60,11 +60,38 @@ per orthogonal direction, before anything is drawn:
 | anything else, including a land square beside open water | none |
 
 The group is why a forest seams as the terrain underneath it, and why
-grassland against conifer forest has no seam at all: both are group 4. A land
-square beside water gets none either — the routine asks
-`cell_draw_terrain_1008_7e2d` what the water draws as and gets `0x19` or `-1`,
-which that branch does not accept. The coastline corner pieces draw that
-boundary instead.
+grassland against conifer forest has no seam at all: both are group 4.
+
+A land square beside water asks `cell_draw_terrain_1008_7e2d` what that water
+draws as, and the answer is not `0x19` but **the group of the land the water's
+own coastline touches** — `coast_neighbours_1008_7cb5` overwrites the remembered
+terrain as it walks the eight neighbours, keeping the last orthogonal land one,
+so west wins over south, south over east, east over north. The beach belongs to
+the land it touches, not to the sea.
+
+### Why desert coasts have no transition, and it is not this tool
+
+The water square seams too, with the land beside it — and the test is
+`nb % 8 != base % 8`. **Ocean is terrain 25, and 25 % 8 is 1, which is desert.**
+So the one land type an ocean square cannot seam with is the one it collides
+with. Measured over `AMER2.MP`:
+
+| land touching a water square | edges | of those, seamed |
+| --- | ---: | ---: |
+| tundra | 115 | 115 |
+| **desert** | **63** | **0** |
+| plains | 85 | 85 |
+| prairie | 39 | 39 |
+| grassland | 49 | 49 |
+| savannah | 195 | 195 |
+| marsh | 13 | 13 |
+| swamp | 40 | 40 |
+
+Every group but desert, every time. The game suppresses that one boundary by
+arithmetic, so a desert shore is sand meeting the water square's own coast art
+with nothing in between — here and in the game. Sea lane is 26, so the same
+collision should silence **plains** against a sea lane; no shipped map can show
+it, because no sea lane on `AMER2.MP` touches land.
 
 Every `mask` is the same four-bit neighbour code — **N 8, S 4, W 2, E 1** —
 which is how every mask helper in the game weights its four neighbours

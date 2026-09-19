@@ -169,6 +169,40 @@ class Seams(unittest.TestCase):
         p = self.plane([[4, 25, 4], [26, 4, 25], [4, 25, 4]])
         self.assertEqual(mapview.seams(p, 1, 1), [])
 
+    def test_water_seams_with_the_land_it_touches_except_desert(self):
+        """The `% 8` collision: ocean is 25, and 25 % 8 is 1, which is desert.
+
+        The seam test is `nb % 8 != base % 8`, so an ocean square seams with
+        every land group but the one whose number it shares. Desert coasts get
+        nothing, in the game as here. Sea lane is 26, so it collides with plains
+        the same way -- a prediction no shipped map can test, because no sea
+        lane on AMER2.MP touches land.
+        """
+        sea = mapview.OCEAN
+        for group, seamed in ((4, True), (2, True), (7, True), (1, False)):
+            p = self.plane([[sea, group, sea], [sea, sea, sea], [sea] * 3])
+            got = mapview.seams(p, 1, 1)
+            self.assertEqual(bool(got), seamed,
+                             "ocean beside group %d: %r" % (group, got))
+            if seamed:
+                self.assertEqual(got, [(0, group)])
+        p = self.plane([[mapview.SEA_LANE, 2, mapview.SEA_LANE],
+                        [mapview.SEA_LANE] * 3, [mapview.SEA_LANE] * 3])
+        self.assertEqual(mapview.seams(p, 1, 1), [],
+                         "sea lane should collide with plains")
+
+    def test_a_shore_asks_the_water_what_is_across_it(self):
+        """`cell_draw_terrain` answers with the water's own last land neighbour."""
+        sea, desert, grass = mapview.OCEAN, 1, 4
+        # The water's west neighbour is grassland, so the desert across it seams
+        # with grassland; west wins over the other orthogonals.
+        p = self.plane([[sea, sea, sea], [grass, sea, desert], [sea, sea, sea]])
+        self.assertEqual(mapview.coast_land_group(p, 1, 1), grass)
+        self.assertEqual(mapview.seams(p, 2, 1), [(3, grass)])
+        # Water with no land around it answers nothing at all.
+        p = self.plane([[sea] * 3, [sea, sea, desert], [sea] * 3])
+        self.assertIsNone(mapview.coast_land_group(p, 0, 0))
+
     def test_the_two_waters_seam_against_each_other_both_ways(self):
         p = self.plane([[25, 26, 25], [25, 25, 25], [25, 25, 25]])
         self.assertEqual(mapview.seams(p, 1, 1), [(0, mapview.SEA_LANE)])
