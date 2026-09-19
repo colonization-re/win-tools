@@ -97,6 +97,27 @@ Every `mask` is the same four-bit neighbour code — **N 8, S 4, W 2, E 1** —
 which is how every mask helper in the game weights its four neighbours
 (`neighbor_mask_1038_d4b9`, `tile_neighbor_match`, `orthogonal_neighbor_bits`).
 
+## Cells are colour-keyed, the way the game cuts them
+
+`ExtractSprite` takes **one colour and drops every pixel of it**, wherever it
+lies, and `load_all_sprite_sheets` passes the key with each rectangle: `0x31`
+for almost everything, `0x51` for the sixteen mountain cells — they are drawn on
+the orange rule rather than on the ground — and `0x87` for the seam masks and
+the coastline pieces. Those are runtime palette indices, so subtract the 40 the
+loader installs this canvas at: **9** the grey ground, **41** the orange rule,
+**95** black.
+
+A coastline piece is keyed *twice*, because it is extracted twice: on black when
+it is cut from the sheet, and on the ground again when the composite of open
+water and the piece is extracted. Both end up transparent.
+
+This tool used to flood the background inward from each cell's border instead,
+which is a reasonable thing to do when you are cutting pictures out of a sheet
+by eye — and wrong here. Tree canopies and rock faces *enclose* pockets of the
+sheet's ground, and flooding leaves them painted: 29,009 pixels of grey over a
+shipped save's map, in specks on every wooded square and a block on every
+coastal one.
+
 ## The tile set is `CVPC 201`, and the art says so
 
 The map art is the left page of `CVPC 201` in `COLDATA1.DLL`, a 1280 × 480

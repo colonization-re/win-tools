@@ -55,8 +55,9 @@ says which.
 from . import png
 from .formats import mapfile
 from .tileset import (Tileset, TILE, BASE_CELLS, COLONY_CELL, CORNER_BACKGROUND,
-                      CORNER_WATER, PLOWED_CELL, SHORE_CELLS, VILLAGE_CELLS,
-                      band_cell, corner_cell, corner_offset)
+                      CORNER_WATER, KEY_BLACK, KEY_RULE, PLOWED_CELL,
+                      SHORE_CELLS, VILLAGE_CELLS, band_cell, corner_cell,
+                      corner_offset)
 
 # terrain.h, from the game's own TERRAIN0..TERRAIN28 resources.
 TERRAIN_MASK = 0x1f
@@ -360,8 +361,11 @@ def _square(canvas, tiles, p0, p1, x, y, px, py, plain):
 
     if (b0 & HILLY) and not water:
         mask = hilly_mask(p0, x, y, b0 & 0xa0)
-        canvas.blit(tiles.cell(band_cell(
-            "mountains" if b0 & HIGH else "hills", mask)), px, py)
+        if b0 & HIGH:
+            # The mountain cells sit on the orange rule, and that is their key.
+            canvas.blit(tiles.cell(band_cell("mountains", mask), KEY_RULE), px, py)
+        else:
+            canvas.blit(tiles.cell(band_cell("hills", mask)), px, py)
 
     if (b0 & RIVER) and not water:
         mask = river_mask(p0, x, y)
@@ -385,9 +389,9 @@ def _square(canvas, tiles, p0, p1, x, y, px, py, plain):
             for j in range(4):
                 dx, dy = corner_offset(j)
                 # Open water under the piece, as the builder composites it.
-                canvas.blit(tiles.cell(CORNER_WATER), px + dx, py + dy)
-                canvas.blit(tiles.cell(corner_cell(corners[j], j), CORNER_BACKGROUND),
-                            px + dx, py + dy)
+                canvas.blit(tiles.cell(CORNER_WATER, KEY_BLACK), px + dx, py + dy)
+                canvas.blit(tiles.cell(corner_cell(corners[j], j),
+                                       CORNER_BACKGROUND), px + dx, py + dy)
 
 
 def _settlement(canvas, tiles, p1, p2, x, y, px, py):

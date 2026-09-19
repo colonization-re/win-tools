@@ -14,6 +14,9 @@ main:
   - title: Formats
     url: /formats/
     match: /formats/
+  - title: Map preview
+    url: /map-preview.html
+    match: /map-preview
   - title: Palettes
     url: /palettes.html
     match: /palettes

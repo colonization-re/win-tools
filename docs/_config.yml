@@ -4,12 +4,18 @@ description: >-
   Windows (1995).
 show_downloads: false
 
-# No Jekyll theme. The site is one layout (`_layouts/default.html`) over the
-# project's shared stylesheet, `assets/col.css` -- a copy of `col.css` from
-# colonization-re/web-ui, so these pages look like the project's other web
-# tools. Pages get that layout from the default below rather than front matter,
-# because the Markdown files carry none: they are meant to read as plain
-# documents in the GitHub file browser too.
+# The release of colonization-re/web-ui these pages are drawn with. This line
+# is the pin, and the only one to edit to move to a new one:
+# `tools/fetch_webui.py` downloads `col.css` from this release into
+# `assets/col.css` (checked against the release's SHA256SUMS.txt), and
+# `.github/workflows/pages.yml` runs it before every build.
+web_ui_version: v1.1.0
+
+# No Jekyll theme. The site is one layout (`_layouts/default.html`) over that
+# shared stylesheet, so these pages look like the project's other web tools.
+# Pages get the layout from the default below rather than front matter, because
+# the Markdown files carry none: they are meant to read as plain documents in
+# the GitHub file browser too.
 #
 # `jekyll-relative-links` (on by default for GitHub Pages) is what makes the
 # .md links in them resolve in both places; `jekyll-optional-front-matter`

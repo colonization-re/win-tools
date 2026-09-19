@@ -3,10 +3,9 @@
 `CVPC 201` is a 1280x480 canvas whose left page is the map art: base terrain
 squares, then six bands of overlay tiles, the coastline corner pieces, and the
 settlements. Cells are ruled off in orange (palette index 41) on a grey ground
-(index 9), so a cell is lifted out by flooding those two values inward from its
-border -- flooding rather than colour-keying, because a grey or orange pixel
-*enclosed* by artwork has to stay painted. Corner pieces are painted on black,
-which is flooded the same way.
+(index 9), and each is lifted out by dropping ONE key colour wherever it
+appears -- which is what `ExtractSprite` does, and which cell takes which key is
+`load_all_sprite_sheets`'s own argument. See KEY_GROUND below.
 
 A canvas carries its own palette in its header, so a cell arrives in true
 colour and no palette question arises -- unlike `SPRT`, which stores indices
@@ -32,6 +31,12 @@ makes the band assignment more than a coincidence of counts: in each band, cell
 1 carries artwork on its east edge only, cell 2 on its west, cell 4 on its
 south, cell 8 on its north, and cell 15 on all four. `tests/test_map.py`
 re-derives that from the pixels and fails if it stops holding.
+
+**Every cell here now comes from the builder.** `load_all_sprite_sheets`
+(`1008:51d4`) cuts all 217 sprites out of this canvas at start-up with explicit
+rectangles and keys, so the table below is transcribed from it rather than
+measured off the picture. What follows is the evidence that was gathered before
+that function was read, and it all agreed.
 
 **The base squares are established** the same way: the draw function takes
 `kind = class & 7` below 0x18 and the class itself above it, which is why the
@@ -63,12 +68,29 @@ CANVAS_MODULE = "COLDATA1.DLL"
 CANVAS_ID = 201
 TILE = 32
 HALF = TILE // 2
-BACKGROUND = (9, 41)        # the sheet's grey ground and its orange rule
-# The coastline corner pieces are painted on black -- palette index 95, 3,782 of
-# the 4,540 pixels it covers on the left page -- and the black is the part of the
-# square the piece does not cover. It is flooded away with the ground, for those
-# cells only: elsewhere on the sheet index 95 is an outline colour.
-CORNER_BACKGROUND = BACKGROUND + (95,)
+# EVERY CELL IS COLOUR-KEYED, not flooded, because that is what the game does:
+# `ExtractSprite` takes one colour and drops every pixel of it, wherever it lies.
+# Flooding inward from the border instead -- which this once did -- leaves the
+# ground painted wherever artwork encloses it, and the sheet's tree canopies and
+# rock faces enclose a lot of it: those pockets came out as grey specks all over
+# the map.
+#
+# The builder's keys are RUNTIME palette indices and the loader installs this
+# canvas at 40, so each is 40 less here:
+#
+#     0x31 -> 9    the grey ground: every tile, icon, shore and inlet
+#     0x51 -> 41   the orange rule: the sixteen mountain cells, which are drawn
+#                  on the rule itself rather than on the ground
+#     0x87 -> 95   black: the four seam masks and the coastline pieces
+KEY_GROUND = 9
+KEY_RULE = 41
+KEY_BLACK = 95
+BACKGROUND = KEY_GROUND
+# A coastline piece is keyed TWICE, because it is extracted twice: once on black
+# when it is cut from the sheet, and again on the ground when the composite of
+# open water and the piece is extracted. Both colours end up transparent, and
+# missing the second one paints 260 pixels of grey on every coastal square.
+CORNER_BACKGROUND = (KEY_BLACK, KEY_GROUND)
 
 # -- the cells -------------------------------------------------------------- #
 # Every box is (x, y, w, h) on the canvas.
@@ -145,7 +167,7 @@ CELL_EVIDENCE = {
     "base": "code: draw_terrain_tile_1038_d8f8 takes kind = class & 7 below 0x18",
     "river_major": "code: icon 0x01 + mask, and the art's edges agree",
     "river_minor": "code: icon 0x11 + mask, and the art's edges agree",
-    "mountains": "code: icon 0x21 + mask, and the art's edges agree",
+    "mountains": "code: icon 0x21 + mask, keyed on the orange rule (0x51)",
     "hills": "code: icon 0x31 + mask, and the art's edges agree",
     "forest": "code: icon 0x41 + mask, and the art's edges agree",
     "road": "code: icon 0x51 isolated, else 0x52 + direction",
@@ -208,42 +230,31 @@ class Tileset:
         raise TilesetError("%s has no CVPC %d, the map tile sheet"
                            % (path, CANVAS_ID))
 
-    def cell(self, box, background=BACKGROUND):
-        """(w, h, rgb, opaque) for one cell, its background flooded away.
+    def cell(self, box, key_colour=KEY_GROUND):
+        """(w, h, rgb, opaque) for one cell, its key colour dropped.
 
         `rgb` is 3 bytes per pixel and `opaque` one byte, 1 where the cell
-        paints and 0 where the flood reached.
+        paints and 0 where the key colour was.
         """
-        key = (box, background)
+        key = (box, key_colour)
         if key in self._cells:
             return self._cells[key]
         x0, y0, w, h = box
         if x0 < 0 or y0 < 0 or x0 + w > self.width or y0 + h > self.height:
             raise TilesetError("cell %r falls outside the %dx%d canvas"
                                % (box, self.width, self.height))
-        px = bytearray(w * h)
-        for y in range(h):
-            row = (y0 + y) * self.width + x0
-            px[y * w:(y + 1) * w] = self.pixels[row:row + w]
-        clear = bytearray(w * h)
-        stack = [(x, y) for x in range(w) for y in (0, h - 1)]
-        stack += [(x, y) for y in range(h) for x in (0, w - 1)]
-        while stack:
-            x, y = stack.pop()
-            if not (0 <= x < w and 0 <= y < h):
-                continue
-            i = y * w + x
-            if clear[i] or px[i] not in background:
-                continue
-            clear[i] = 1
-            stack += [(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)]
         rgb = bytearray(w * h * 3)
         opaque = bytearray(w * h)
-        for i in range(w * h):
-            if clear[i]:
-                continue
-            opaque[i] = 1
-            rgb[i * 3:i * 3 + 3] = bytes(self.palette[px[i]])
+        for y in range(h):
+            row = (y0 + y) * self.width + x0
+            for x in range(w):
+                v = self.pixels[row + x]
+                if v == key_colour or (isinstance(key_colour, tuple)
+                                       and v in key_colour):
+                    continue
+                i = y * w + x
+                opaque[i] = 1
+                rgb[i * 3:i * 3 + 3] = bytes(self.palette[v])
         out = (w, h, bytes(rgb), bytes(opaque))
         self._cells[key] = out
         return out

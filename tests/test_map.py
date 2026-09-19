@@ -23,8 +23,9 @@ from colwin import mapview                                          # noqa: E402
 from colwin import png as pnglib                                    # noqa: E402
 from colwin.formats import mapfile                                  # noqa: E402
 from colwin.tileset import (BANDS, BASE_CELLS, CORNER_BACKGROUND,     # noqa: E402
-                            MASK_CELLS, MASK_KEEP, SHORE_CELLS, SHORE_OPEN,
-                            Tileset, band_cell, corner_cell, corner_offset)
+                            KEY_GROUND, MASK_CELLS, MASK_KEEP, SHORE_CELLS,
+                            SHORE_OPEN, Tileset, band_cell, corner_cell,
+                            corner_offset)
 
 GAME = os.environ.get("COLWIN_GAME")
 _tiles = {}
@@ -390,6 +391,38 @@ class Art(unittest.TestCase):
                                    "code %d piece %d leans (%.1f, %.1f), "
                                    "the code says (%d, %d)"
                                    % (code, j, cx, cy, vx, vy))
+
+    def test_the_key_colour_is_dropped_everywhere_it_appears(self):
+        """Colour-keyed, not flooded: the game's ExtractSprite drops a colour.
+
+        The forest band's canopies enclose pockets of the sheet's ground, and
+        flooding inward from the border leaves them painted -- which put grey
+        specks over every wooded square. Nothing keyed may survive anywhere.
+        """
+        tiles = tileset(game_or_skip(self))
+        for box in [band_cell("forest", m) for m in range(16)] + [BASE_CELLS[4]]:
+            w, h, _rgb, opaque = tiles.cell(box, KEY_GROUND)
+            x0, y0 = box[0], box[1]
+            for y in range(h):
+                for x in range(w):
+                    if tiles.pixels[(y0 + y) * tiles.width + x0 + x] == KEY_GROUND:
+                        self.assertFalse(opaque[y * w + x],
+                                         "%r paints the key at (%d, %d)"
+                                         % (box, x, y))
+
+    def test_a_coastline_piece_is_keyed_twice(self):
+        """Once on black when it is cut, once on the ground when composited."""
+        tiles = tileset(game_or_skip(self))
+        for code in range(8):
+            for j in range(4):
+                box = corner_cell(code, j)
+                w, h, _rgb, opaque = tiles.cell(box, CORNER_BACKGROUND)
+                for y in range(h):
+                    for x in range(w):
+                        v = tiles.pixels[(box[1] + y) * tiles.width + box[0] + x]
+                        if v in CORNER_BACKGROUND:
+                            self.assertFalse(opaque[y * w + x],
+                                             "corner %d/%d keeps %d" % (code, j, v))
 
     def test_the_ocean_square_is_solid_and_the_forest_overlay_is_not(self):
         tiles = tileset(game_or_skip(self))
