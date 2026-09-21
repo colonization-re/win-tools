@@ -21,7 +21,8 @@ wrote map.png, 1856x2304 pixels at 32 px a square
 | `game` | an installed copy — the art comes out of its `COLDATA1.DLL` |
 | `--out` | the PNG to write |
 | `--tile=PX` | pixels a square, 1 to 32. The default is 32, the size the game draws |
-| `--plain` | leave out the seams, the plowed squares and the settlements |
+| `--plain` | leave out the seams, the resources, the plowed squares and the settlements |
+| `--seed=N` | place the resources with this seed. A save carries its own; a `.MP` has none |
 
 At the default size the shipped 58 × 72 map is a 1856 × 2304 image. `--tile=8`
 gives the same map as 464 × 576, which is the size to use for a thumbnail or a
@@ -43,6 +44,8 @@ map square, and this applies it to every square in turn:
 | roads | `0x51`, else `0x52 + direction` | plane 1 bits `0xa` |
 | coastline | four corner pieces, `0x6d + code × 4 + j`, or one shore square | water with land around it |
 | river mouths | `0x8d + d` major, `0x91 + d` minor | a water square a river runs into |
+| prime resources | `0x5a + kind` | the scenery seed, hashed against the square |
+| lost city rumours | `0x68` | the same seed, a different hash |
 | settlements | — | plane 1 bit `0x02`, owner from plane 2's high nibble |
 
 ### A coastal water square is drawn on the land behind it
@@ -62,6 +65,71 @@ tundra against tundra. Open sea takes the ocean tile, which is why the class is
 saved into `wter` before the scan runs; a square with land only on its diagonals
 has nothing written to it and keeps its own tile too. On the shipped map, **370
 of the 517 coastal squares** are drawn on the land behind them.
+
+### Prime resources, and the seed that places them
+
+**The scenery seed is in the save**, and an earlier version of this page said it
+was not. It is write 56 of the 57: two bytes, big-endian, **890 from the end of
+the file**, between `g_seed_base` and the final 888-byte block.
+`generate_map` rolls it once with `rand_range(1, 0x7fff)` when the map is made,
+and `load_saved_game` swaps it back on the way in.
+
+`tile_decoration` (`1038:c066`) hashes each square against it:
+
+```
+v = ((x / 4) * 17 + seed + (y / 4) * 19 + 31 * forest) & 0xf
+h = (x & 3) * 4 + (y & 3)
+```
+
+and a resource lands only where `h` equals `v` or `v ^ 10` — two of the sixteen
+positions in every 4 × 4 block. The `31 * forest` term shifts the pattern for
+the forest ids, so a wood does not carry the same layout as the open land beside
+it. What lands there is the terrain's entry in the table at `SEG27:0x2ca`, read
+as 6 when it is 0:
+
+| terrain | kind | | terrain | kind |
+| --- | ---: | --- | --- | ---: |
+| tundra, marsh, swamp, wetland, rain | 6 | | ocean | 7 |
+| desert, scrub forest | 1 | | mixed forest | 8 |
+| plains | 2 | | boreal, broadleaf | 9 |
+| prairie | 3 | | conifer, tropical | 10 |
+| grassland | 4 | | mountains | 12 |
+| savannah | 5 | | hills | 13 |
+| arctic, sea lane | none | | | |
+
+Nothing is placed on a square holding a **native** settlement, and a depleted
+square (plane 1 bit `0x04`) turns a mountain's 12 into 0 — the worked-out mine —
+and everything else into nothing.
+
+There is no kind 11 in that table, and the builder never cuts `g_art_base[128]`,
+which is the cell kind 11 would use. The one value the table cannot produce is
+the one the game does not own art for.
+
+On the shipped save, seed 22,878 places **437 resources**: 277 fish, 39 and 30
+in the two commonest forest kinds, 21 silver in the mountains, 21 ore in the
+hills, and the rest spread over the open land.
+
+A `.MP` has no seed — **a map has no resources until a game starts on it** — so
+`map-preview` draws none, and says so. `--seed=N` shows what one roll would
+give.
+
+### Lost city rumours, and a name that is wrong
+
+`tile_is_river_mouth` (`1038:c193`) is not a river mouth. It places **lost city
+rumours**, and three things say so:
+
+- **the icon.** It draws `0x68`, which the builder cuts at (369, 188): a carved
+  wooden totem disc, the marker the game puts on a rumour;
+- **the conditions.** It refuses water and sea lane, refuses arctic, and refuses
+  any square a nation has claimed — where rumours may not be placed. It never
+  looks at a river bit, or at a neighbour, which a river mouth would have to;
+- **the company.** It is hashed out of the same scenery seed as the resources,
+  in the same `g_map_mode == 0` block, and both are placed once when the map is
+  made.
+
+Its hash is the resources' with `+ 8` and five bits rather than four, so it
+lands on one position in thirty-two: **23 rumours** on the shipped save's 1,434
+land squares, 1.6%.
 
 ### Where a river meets the sea, or a lake
 
@@ -221,12 +289,6 @@ two the land is on — all four, in reading order. On the shipped map they draw
 98 of the 517 coastal squares; the corner pieces draw the other 419.
 
 ## What it does not draw, and why
-
-**Prime resources and scenery.** `tile_decoration_1038_c066` picks them by
-hashing the square's position against a seed at DGROUP `0x1ca6`, and that seed
-is **not one of the 57 fields the save routine writes**. Nothing in the file
-determines them, so nothing is drawn. A save that looks bare of beaver and fish
-next to the running game is not a bug in this tool.
 
 **Units.** Plane 1 bit `0x01` says a square holds one. Nothing in the planes
 says which, and the tool does not guess.

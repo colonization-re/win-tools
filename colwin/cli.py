@@ -129,13 +129,20 @@ def cmd_verify(args):
 
 def cmd_map_preview(args):
     r = render_file(args.map, args.game, args.out, plain=args.plain,
-                    tile_size=args.tile)
+                    tile_size=args.tile, seed=args.seed)
     print("%s: a %dx%d %s map, planes at %#06x"
           % (os.path.basename(args.map), r["width"], r["height"], r["kind"],
              r["map_start"]))
     if r["kind"] == "SAV":
         print("    %d settlement(s): %d colon(ies), %d village(s)"
               % (r["settlements"], r["colonies"], r["villages"]))
+    if r["seed"]:
+        print("    scenery seed %d: %d square(s) carry a prime resource%s"
+              % (r["seed"], r["resources"],
+                 " (not drawn: --plain)" if args.plain else ""))
+    elif r["kind"] == "MP":
+        print("    no scenery seed: a map has no resources until a game starts "
+              "on it (--seed=N to see one)")
     else:
         print("    terrain and coastline only: a .MP has no settlement plane")
     print("\nwrote %s, %dx%d pixels at %d px a square"
@@ -214,6 +221,10 @@ def main(argv=None):
     q.add_argument("--out", required=True, help="the PNG to write")
     q.add_argument("--tile", type=int, default=TILE, metavar="PX",
                    help="pixels a square, 1 to %d (default %d)" % (TILE, TILE))
+    q.add_argument("--seed", type=int, metavar="N",
+                   help="the scenery seed to place prime resources with. A save "
+                        "carries its own; a .MP has none until a game is started "
+                        "on it, so this shows what one seed would give")
     q.add_argument("--plain", action="store_true",
                    help="draw only what the game's own art supplies: no "
                         "terrain seams, no plowed icon and no settlements, "

@@ -304,6 +304,85 @@ class SeamArt(unittest.TestCase):
                 self.assertTrue(full[i], "seam paints where the square does not")
 
 
+class Scenery(unittest.TestCase):
+    """The prime resources and the lost city rumours, from the saved seed."""
+
+    def plane(self, rows):
+        h = len(rows)
+        w = len(rows[0])
+        return mapview.Plane(bytes(b for row in rows for b in row), w, h)
+
+    def test_the_seed_is_two_big_endian_bytes_890_from_the_end(self):
+        game = game_or_skip(self)
+        d = mapfile.load(os.path.join(game, "AUTO01.SAV"))
+        self.assertEqual(d["seed_at"], os.path.getsize(
+            os.path.join(game, "AUTO01.SAV")) - 890)
+        self.assertTrue(1 <= d["scenery_seed"] <= 0x7fff,
+                        "generate_map rolls rand_range(1, 0x7fff): %d"
+                        % d["scenery_seed"])
+
+    def test_nothing_is_placed_without_a_seed(self):
+        p = self.plane([[4] * 3] * 3)
+        self.assertIsNone(mapview.decoration(p, None, None, 1, 1, 0))
+        self.assertFalse(mapview.lost_city_rumour(p, None, 1, 1, 0))
+
+    def test_two_of_every_sixteen_positions_carry_one(self):
+        """`h == v` or `h == v ^ 10`, over a 4x4 block of one terrain."""
+        p = self.plane([[4] * 8 for _ in range(8)])
+        hits = [(x, y) for y in range(4) for x in range(4)
+                if mapview.decoration(p, None, None, x, y, 1234) is not None]
+        self.assertEqual(len(hits), 2, "%r" % hits)
+
+    def test_the_kind_is_the_terrain_s_own_bonus(self):
+        p = self.plane([[25] * 8 for _ in range(8)])      # all ocean: fish, 7
+        kinds = {mapview.decoration(p, None, None, x, y, 1234)
+                 for y in range(4) for x in range(4)}
+        self.assertEqual(kinds - {None}, {7})
+        p = self.plane([[24] * 8 for _ in range(8)])      # arctic: -1, never
+        self.assertEqual({mapview.decoration(p, None, None, x, y, 1234)
+                          for y in range(4) for x in range(4)}, {None})
+
+    def test_depletion_empties_a_square_but_leaves_a_mine(self):
+        mountain = 0xa0 | 4            # hilly + high: MOUNTAINS, bonus 12
+        p = self.plane([[mountain] * 8 for _ in range(8)])
+        plain = self.plane([[4] * 8 for _ in range(8)])
+        p1 = self.plane([[mapview.P1_DEPLETED] * 8 for _ in range(8)])
+        p2 = self.plane([[0xff] * 8 for _ in range(8)])
+        spot = [(x, y) for y in range(4) for x in range(4)
+                if mapview.decoration(p, None, None, x, y, 1234) is not None][0]
+        self.assertEqual(mapview.decoration(p, None, None, *spot, seed=1234), 12)
+        self.assertEqual(mapview.decoration(p, p1, p2, *spot, seed=1234), 0)
+        self.assertIsNone(mapview.decoration(plain, p1, p2, *spot, seed=1234))
+
+    def test_a_native_village_hides_the_resource(self):
+        p = self.plane([[4] * 8 for _ in range(8)])
+        spot = [(x, y) for y in range(4) for x in range(4)
+                if mapview.decoration(p, None, None, x, y, 1234) is not None][0]
+        p1 = self.plane([[mapview.P1_SETTLEMENT] * 8 for _ in range(8)])
+        native = self.plane([[0x40] * 8 for _ in range(8)])     # nibble 4
+        european = self.plane([[0x00] * 8 for _ in range(8)])   # nibble 0
+        self.assertIsNone(mapview.decoration(p, p1, native, *spot, seed=1234))
+        self.assertIsNotNone(mapview.decoration(p, p1, european, *spot, seed=1234))
+
+    def test_a_rumour_lands_on_one_position_in_thirty_two(self):
+        p = self.plane([[4] * 8 for _ in range(8)])
+        hits = [(x, y) for y in range(8) for x in range(8)
+                if mapview.lost_city_rumour(p, None, x, y, 1234)]
+        self.assertEqual(len(hits), 2, "%r" % hits)          # 64 squares / 32
+        sea = self.plane([[25] * 8 for _ in range(8)])
+        self.assertFalse(any(mapview.lost_city_rumour(sea, None, x, y, 1234)
+                             for y in range(8) for x in range(8)))
+
+    def test_a_claimed_square_carries_no_rumour(self):
+        p = self.plane([[4] * 8 for _ in range(8)])
+        spot = [(x, y) for y in range(8) for x in range(8)
+                if mapview.lost_city_rumour(p, None, x, y, 1234)][0]
+        claimed = self.plane([[0x30] * 8 for _ in range(8)])    # nibble 3
+        none = self.plane([[0xf0] * 8 for _ in range(8)])       # nibble 15
+        self.assertFalse(mapview.lost_city_rumour(p, claimed, *spot, seed=1234))
+        self.assertTrue(mapview.lost_city_rumour(p, none, *spot, seed=1234))
+
+
 class RiverMouths(unittest.TestCase):
     """Where a river meets the sea, or a lake it feeds."""
 

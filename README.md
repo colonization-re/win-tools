@@ -66,6 +66,7 @@ masks and its arithmetic:
 | forest, plowed, hills, mountains, rivers, roads | one band each, indexed by a four-bit neighbour code: **N 8, S 4, W 2, E 1** |
 | coastline | four corner pieces, or one of four whole-edge shore squares when the land around matches one of four exact patterns |
 | river mouths | where a river runs into the sea, or into a lake it feeds |
+| prime resources, lost city rumours | hashed out of the save's own scenery seed |
 | settlements | from the settlement bit and the owner nibble |
 
 The art comes out of `CVPC 201` in `COLDATA1.DLL` with the rectangles and key
@@ -76,11 +77,14 @@ coastline corner is open water with a coast piece over it, keyed afterwards —
 and in both cases the **order** is what makes the picture, which is the sort of
 thing these tools are for finding out.
 
-Two layers are deliberately absent, both because the file cannot supply them:
-the scenery and prime resources, which the game hashes out of a seed that is
-not one of the 57 fields a save writes, and the fog of war, which needs a
-viewer. [Map preview](docs/map-preview.md) is the long version, layer by layer,
-with what each one rests on.
+What it will not draw is what the file does not say: the units, which the
+planes record only as *a unit is here*, and the fog of war, which needs a
+viewer. Everything else a save holds is on the picture — including the prime
+resources and the lost city rumours, which are hashed out of the two-byte
+scenery seed the save keeps 890 bytes from its end. A `.MP` has no seed, because
+a map has no resources until a game starts on it; `--seed=N` shows what one roll
+would give. [Map preview](docs/map-preview.md) is the long version, layer by
+layer, with what each one rests on.
 
 No rendered map ships in this repository: the pixels are the game's artwork,
 and the same rule applies to them as to everything else here — bring your own

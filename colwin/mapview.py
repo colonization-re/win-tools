@@ -14,6 +14,8 @@ square in turn:
                                    hills          icon 0x31 + mask
                                    mountains      icon 0x21 + mask
                                    river          icon 0x11 + mask, major 0x01
+                                   resources      icon 0x5a + kind, from the seed
+                                   rumours        icon 0x68, from the same seed
                                    roads          icon 0x51, else 0x52 + direction
     water with land around it      four corner pieces, 0x6d + code * 4 + j
 
@@ -39,12 +41,7 @@ square and draws up to four overlay sprites from it,
 rule -- and `load_all_sprite_sheets` builds the 44 sprites themselves out of a
 terrain square and a mask, which `Tileset.seam` reproduces.
 
-## Three things this does not draw
-
-**Scenery and prime resources.** `tile_decoration_1038_c066` hashes the
-square's position against `g_scenery_seed` (DGROUP `0x1ca6`), and that seed is
-not one of the 57 fields the save routine writes. Without it the decorations
-are not reproducible from a file, so none are drawn.
+## Two things this does not draw
 
 **The four whole-edge coast tiles.** The draw function uses icons 0x97..0x9a
 when the land mask matches one of four patterns exactly; no cell is bound to
@@ -56,16 +53,21 @@ says which.
 """
 from . import png
 from .formats import mapfile
-from .tileset import (Tileset, TILE, BASE_CELLS, COLONY_CELL, INLET_CELLS,
-                      KEY_RULE, PLOWED_CELL, SHORE_CELLS, VILLAGE_CELLS,
-                      band_cell, corner_offset)
+from .tileset import (Tileset, TILE, BASE_CELLS, COLONY_CELL, DECORATION_CELLS,
+                      INLET_CELLS, KEY_RULE, PLOWED_CELL, RIVER_MOUTH_CELL,
+                      SHORE_CELLS, VILLAGE_CELLS, band_cell, corner_offset)
 
 # terrain.h, from the game's own TERRAIN0..TERRAIN28 resources.
 TERRAIN_MASK = 0x1f
 HILLY, RIVER, HIGH = 0x20, 0x40, 0x80
 FOREST_FIRST, FOREST_LAST = 8, 23
-ARCTIC, OCEAN, SEA_LANE = 24, 25, 26
-P1_SETTLEMENT, P1_ROAD, P1_PLOWED = 0x02, 0x08, 0x40
+ARCTIC, OCEAN, SEA_LANE, MOUNTAINS, HILLS = 24, 25, 26, 27, 28
+P1_SETTLEMENT, P1_DEPLETED, P1_ROAD, P1_PLOWED = 0x02, 0x04, 0x08, 0x40
+
+# SEG27:0x2ca, one per terrain id: which prime resource that terrain carries
+# where the scenery hash lands. -1 is none, and `tile_decoration` reads 0 as 6.
+TERRAIN_BONUS = (6, 1, 2, 3, 4, 5, 6, 6, 9, 1, 8, 9, 10, 10, 6, 6,
+                 9, 1, 8, 9, 10, 10, 6, 6, -1, 7, -1, 12, 13)
 ROAD_BITS = 0x0a        # the draw function tests plane 1 bits 0xa for a road
 NIBBLE_NONE = 15
 EUROPEAN_COUNT = 4
@@ -268,6 +270,84 @@ def river_mouths(p0, x, y):
     return bool(river & HIGH), out
 
 
+def terrain_at(p0, x, y):
+    """`terrain_at` (1040:42e8) over `terrain_from_map_byte`: the id, with a
+    hilly square answering MOUNTAINS or HILLS rather than what is under it."""
+    b = p0.at(x, y)
+    if b & HILLY:
+        return MOUNTAINS if b & HIGH else HILLS
+    return b & TERRAIN_MASK
+
+
+def decoration(p0, p1, p2, x, y, seed):
+    """The prime resource on a square, or None -- `tile_decoration` (1038:c066).
+
+    The square's position is hashed against the save's scenery seed:
+
+        v = ((x / 4) * 17 + seed + (y / 4) * 19 + 31 * forest) & 0xf
+        h = (x & 3) * 4 + (y & 3)
+
+    and a resource lands only where `h` equals `v` or `v ^ 10` -- two of the
+    sixteen positions in each 4x4 block, and the `31 * forest` term shifts the
+    pattern for the forest ids so woods do not carry the same layout as the open
+    land beside them. Which resource is then the terrain's entry in
+    TERRAIN_BONUS, read as 6 when it is 0.
+
+    Nothing is drawn without a seed, on a square holding a NATIVE settlement
+    (`square_native_nation`, which is the settlement bit plus an owner nibble of
+    4 or more), or on a depleted square -- where plane 1 bit 0x04 turns a
+    mountain's 12 into 0 and everything else into nothing at all.
+    """
+    if not seed or not (0 <= x < p0.w and 0 <= y < p0.h):
+        return None
+    if p1 is not None and p2 is not None:
+        if p1.at(x, y) & P1_SETTLEMENT and (p2.at(x, y) >> 4) >= EUROPEAN_COUNT:
+            return None
+    t = p0.at(x, y) & 0x3f              # the drawer masks the river bits off
+    forest = 1 if 8 <= t < ARCTIC else 0
+    v = ((x >> 2) * 17 + seed + (y >> 2) * 19 + forest * 31) & 0xf
+    h = ((x & 3) << 2) + (y & 3)
+    if h != v and (v ^ 0xa) != h:
+        return None
+    r = TERRAIN_BONUS[terrain_at(p0, x, y)]
+    if r == 0:
+        r = 6
+    if p1 is not None and p1.at(x, y) & P1_DEPLETED:
+        r = 0 if r == 12 else -1
+    return r if r >= 0 else None
+
+
+def lost_city_rumour(p0, p2, x, y, seed):
+    """Icon 0x68 on a land square: a LOST CITY RUMOUR.
+
+    win-decomp calls this one `tile_is_river_mouth` (1038:c193). It is not a
+    river mouth, and three things say so:
+
+    * **the icon.** 0x68 is a carved wooden totem disc, cut by the builder at
+      (369, 188) -- the marker the game puts on a rumour, not anything to do
+      with water;
+    * **the conditions.** It refuses water and sea lane, refuses arctic, and
+      refuses any square a nation has claimed (plane 2's high nibble), which is
+      where rumours may not be placed. It never looks at a river bit or at a
+      neighbouring square, which a river mouth would have to;
+    * **the company it keeps.** It is hashed out of the scenery seed beside the
+      prime resources, in the same `g_map_mode == 0` block, and both are placed
+      once when the map is made.
+
+    The hash is the resources' with `+ 8` and five bits rather than four, so it
+    lands on one position in thirty-two rather than two in sixteen.
+    """
+    if not seed or not (0 <= x < p0.w and 0 <= y < p0.h):
+        return False
+    t = terrain_at(p0, x, y)
+    if t in (OCEAN, SEA_LANE, ARCTIC):
+        return False
+    if p2 is not None and (p2.at(x, y) >> 4) != NIBBLE_NONE:
+        return False
+    v = (x >> 2) * 17 + seed + (y >> 2) * 19 + 8
+    return ((x & 3) << 2) + (y & 3) == (v & 0x1f)
+
+
 def shore_piece(land):
     """Which whole-edge shore square, if any, the land around this water fits.
 
@@ -378,7 +458,15 @@ def _seams(canvas, tiles, p0, x, y, px, py, plain):
         canvas.blit(tiles.seam(BASE_CELLS[terrain], d), px, py)
 
 
-def _square(canvas, tiles, p0, p1, x, y, px, py, plain):
+def _decoration(canvas, tiles, p0, p1, p2, x, y, px, py, seed):
+    if not seed:
+        return
+    kind = decoration(p0, p1, p2, x, y, seed)
+    if kind is not None and kind in DECORATION_CELLS:
+        canvas.blit(tiles.cell(DECORATION_CELLS[kind]), px, py)
+
+
+def _square(canvas, tiles, p0, p1, p2, x, y, px, py, plain, seed):
     """One map square, in the order `1038:d8f8` paints it."""
     b0 = p0.at(x, y)
     cls = terrain_class(b0)
@@ -395,6 +483,7 @@ def _square(canvas, tiles, p0, p1, x, y, px, py, plain):
     if water and count == 0:
         canvas.blit(tiles.cell(BASE_CELLS[cls]), px, py)
         _seams(canvas, tiles, p0, x, y, px, py, plain)
+        _decoration(canvas, tiles, p0, p1, p2, x, y, px, py, seed)
         return
 
     kind = cls & 7 if cls < 0x18 else cls
@@ -421,6 +510,11 @@ def _square(canvas, tiles, p0, p1, x, y, px, py, plain):
         canvas.blit(tiles.cell(band_cell(
             "river_major" if b0 & HIGH else "river_minor", mask)), px, py)
 
+    if not water:
+        _decoration(canvas, tiles, p0, p1, p2, x, y, px, py, seed)
+        if lost_city_rumour(p0, p2, x, y, seed):
+            canvas.blit(tiles.cell(RIVER_MOUTH_CELL), px, py)
+
     if p1 is not None and not water and (p1.at(x, y) & ROAD_BITS):
         mask = road_mask(p1, x, y)
         if mask == 0:
@@ -441,6 +535,7 @@ def _square(canvas, tiles, p0, p1, x, y, px, py, plain):
         major, mouths = river_mouths(p0, x, y)
         for d in mouths:
             canvas.blit(tiles.cell(INLET_CELLS[major][d]), px, py)
+        _decoration(canvas, tiles, p0, p1, p2, x, y, px, py, seed)
 
 
 def _settlement(canvas, tiles, p1, p2, x, y, px, py):
@@ -480,8 +575,12 @@ def _shrink(canvas, size):
     return out
 
 
-def render(game_map, tiles, plain=False, tile_size=TILE):
-    """The whole map as a `Canvas`, plus what was drawn."""
+def render(game_map, tiles, plain=False, tile_size=TILE, seed=None):
+    """The whole map as a `Canvas`, plus what was drawn.
+
+    `seed` overrides the save's own scenery seed, and gives a `.MP` one it does
+    not have: the resources a map would carry in a game that rolled that seed.
+    """
     w, h = game_map["width"], game_map["height"]
     planes = game_map["planes"]
     p0 = Plane(planes[0], w, h)
@@ -490,11 +589,20 @@ def render(game_map, tiles, plain=False, tile_size=TILE):
         p1 = Plane(planes[1], w, h, off_map=0)
         p2 = Plane(planes[2], w, h, off_map=0xff)
 
+    if seed is None:
+        seed = game_map.get("scenery_seed", 0)
     canvas = Canvas(w * TILE, h * TILE)
-    tally = {"squares": w * h, "settlements": 0, "colonies": 0, "villages": 0}
+    tally = {"squares": w * h, "settlements": 0, "colonies": 0, "villages": 0,
+             "seed": seed, "resources": 0}
+    if seed:
+        for y in range(h):
+            for x in range(w):
+                if decoration(p0, p1, p2, x, y, seed) is not None:
+                    tally["resources"] += 1
     for y in range(h):
         for x in range(w):
-            _square(canvas, tiles, p0, p1, x, y, x * TILE, y * TILE, plain)
+            _square(canvas, tiles, p0, p1, p2, x, y, x * TILE, y * TILE,
+                    plain, seed)
     if p1 is not None:
         # Counted whether or not they are drawn, so that --plain still reports
         # what is in the file.
@@ -515,14 +623,15 @@ def render(game_map, tiles, plain=False, tile_size=TILE):
     return canvas, tally
 
 
-def render_file(path, game, out, plain=False, tile_size=TILE):
+def render_file(path, game, out, plain=False, tile_size=TILE, seed=None):
     """Read a `.MP` or `.SAV`, draw it, write the PNG. Returns a report."""
     if not 1 <= tile_size <= TILE:
         raise MapviewError("--tile takes 1 to %d pixels a square, not %d"
                            % (TILE, tile_size))
     game_map = mapfile.load(path)
     tiles = Tileset.from_game(game)
-    canvas, tally = render(game_map, tiles, plain=plain, tile_size=tile_size)
+    canvas, tally = render(game_map, tiles, plain=plain, tile_size=tile_size,
+                           seed=seed)
     png.write_rgb(out, canvas.w, canvas.h, bytes(canvas.buf))
     tally.update({"kind": game_map["kind"], "width": game_map["width"],
                   "height": game_map["height"], "image": (canvas.w, canvas.h),

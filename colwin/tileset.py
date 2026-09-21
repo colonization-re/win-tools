@@ -175,6 +175,23 @@ INLET_CELLS = {
             2: (454, 438, TILE, TILE), 3: (494, 438, TILE, TILE)},
 }
 
+# The prime resources -- "decorations" in the drawer -- are icons 0x5a + kind,
+# and the kind comes from the terrain-bonus table at SEG27:0x2ca. The builder
+# cuts thirteen of the fourteen: `g_art_base[128]`, which would be kind 11, is
+# never extracted, and 11 is exactly the value that table never produces. Kind 0
+# is reachable only through depletion, which turns a mountain's 12 into it.
+DECORATION_CELLS = {
+    0: (233, 189, TILE, TILE), 1: (68, 156, TILE, TILE),
+    2: (101, 156, TILE, TILE), 3: (134, 156, TILE, TILE),
+    4: (167, 156, TILE, TILE), 5: (200, 156, TILE, TILE),
+    6: (233, 156, TILE, TILE), 7: (303, 155, TILE, TILE),
+    8: (101, 189, TILE, TILE), 9: (134, 189, TILE, TILE),
+    10: (167, 189, TILE, TILE), 12: (303, 188, TILE, TILE),
+    13: (336, 188, TILE, TILE),
+}
+# Icon 0x68, drawn on a land square the same hash calls a river mouth.
+RIVER_MOUTH_CELL = (369, 188, TILE, TILE)
+
 # From the builder as well: icon 0x96 is (304, 397), the first furrow cell.
 PLOWED_CELL = (304, 397, TILE, TILE)     # icon 0x96, from the builder
 COLONY_CELL = (663, 203, TILE, TILE)
@@ -191,6 +208,7 @@ CELL_EVIDENCE = {
     "road": "code: icon 0x51 isolated, else 0x52 + direction",
     "coast": "code: icon g_4c6e[j] * 4 + j + 0x6d, four 16x16 pieces",
     "inlet": "code: icons 0x8d + d major, 0x91 + d minor, on a water square",
+    "decoration": "code: icon 0x5a + the SEG27:0x2ca bonus for the terrain",
     "shore": "code: icons 0x97..0x9a, and each cell's open edges match its pattern",
     "plowed": "inferred: icon 0x96 has no established cell; identified by eye",
     "settlement": "inferred: no load site derives settlement art from a nation",

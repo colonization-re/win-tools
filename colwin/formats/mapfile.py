@@ -25,6 +25,12 @@ file offset 0x10, putting them at 0x2a, 0x2c and 0x2e. 3005 is the sum of the
 fixed writes before the map, 1502 the sum of the eight after it. See
 win-decomp's `docs/formats/save-file.md` and `tools/save_layout.py`.
 
+A save also carries the **scenery seed**, which is what decides where the prime
+resources are: `tile_decoration` hashes each square's position against it. It is
+write 56 of the 57, two bytes big-endian, 890 from the end of the file, and
+`generate_map` sets it once with `rand_range(1, 0x7fff)` when the map is made.
+A `.MP` has none -- a map has no resources until a game starts on it.
+
 What the planes hold is in `colwin/mapview.py`, which draws them; this module
 only cuts them out. Plane 0 is terrain in both files. A save's other three are
 the bitfield, the nation nibbles and the nation bitmask (win-decomp
@@ -40,6 +46,11 @@ SAV_MAGIC = b"COLONIZE\0"
 SAV_FIXED_BEFORE_MAP = 3005     # writes 1-45, minus the three record arrays
 SAV_FIXED_AFTER_MAP = 1502      # writes 50-57
 SAV_RECORDS = ((0x2a, 18), (0x2c, 28), (0x2e, 202))
+# The scenery seed is write 56 of 57: two bytes, big-endian, between the four
+# 4-byte fields after the map and the final 888-byte block. `save_game_to_file`
+# byte-swaps it on the way out and `load_saved_game` swaps it back.
+SAV_AFTER_SEED = 888
+SAV_SEED_SIZE = 2
 SAV_DIMS = 0x0c
 SAV_PLANES = 4
 MP_PLANES = 3
@@ -86,8 +97,11 @@ def decode_sav(data):
         raise MapError("the save's arithmetic does not close: %d computed "
                        "against %d actual, for a %dx%d map with records %s"
                        % (total, len(data), w, h, counts))
+    seed_at = len(data) - SAV_AFTER_SEED - SAV_SEED_SIZE
+    seed = struct.unpack_from(">H", data, seed_at)[0]
     return {"kind": "SAV", "width": w, "height": h, "record_counts": counts,
-            "planes": _planes(data, start, SAV_PLANES, n), "map_start": start}
+            "planes": _planes(data, start, SAV_PLANES, n), "map_start": start,
+            "scenery_seed": seed, "seed_at": seed_at}
 
 
 def decode(data):
